@@ -6,7 +6,7 @@ import { DiffViewer } from '@/components/DiffViewer';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
 import { Header } from '@/components/Header';
-import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from '@/types';
+import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings, ConfigFormat } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
@@ -148,8 +148,8 @@ function App() {
       const leftFormat = leftFile ? detectFormat(leftFile.file.name, leftContent) : null;
       const rightFormat = rightFile ? detectFormat(rightFile.file.name, rightContent) : null;
       
-      const leftParsed = leftContent && leftFormat ? parseConfig(leftContent, leftFormat) : { data: {}, format: leftFormat };
-      const rightParsed = rightContent && rightFormat ? parseConfig(rightContent, rightFormat) : { data: {}, format: rightFormat };
+      const leftParsed = leftContent && leftFormat ? parseConfig(leftContent, leftFormat) : { data: {}, format: leftFormat, error: undefined };
+      const rightParsed = rightContent && rightFormat ? parseConfig(rightContent, rightFormat) : { data: {}, format: rightFormat, error: undefined };
       
       if (leftParsed.error) {
         throw new Error(`Error parsing left file: ${leftParsed.error}`);
@@ -162,14 +162,14 @@ function App() {
       const leftConfigFile = {
         name: leftFile?.file.name || 'Empty',
         content: leftContent,
-        format: leftFormat || 'text',
+        format: (leftFormat || 'config') as ConfigFormat,
         parsedContent: leftParsed.data
       };
       
       const rightConfigFile = {
         name: rightFile?.file.name || 'Empty',
         content: rightContent,
-        format: rightFormat || 'text',
+        format: (rightFormat || 'config') as ConfigFormat,
         parsedContent: rightParsed.data
       };
       
