@@ -10,8 +10,8 @@ export function parseINI(content: string): ParsedConfig {
       if (typeof obj === 'string') {
         if (obj.toLowerCase() === 'true') return true;
         if (obj.toLowerCase() === 'false') return false;
-        if (/^\\d+$/.test(obj)) return parseInt(obj, 10);
-        if (/^\\d+\\.\\d+$/.test(obj)) return parseFloat(obj);
+        if (/^\d+$/.test(obj)) return parseInt(obj, 10);
+        if (/^\d+\.\d+$/.test(obj)) return parseFloat(obj);
         return obj;
       }
       
