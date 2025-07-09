@@ -25,6 +25,14 @@ interface DiffItem {
   description?: string;
 }
 
+// Helper function to format values for display
+const formatValue = (value: any): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  return String(value);
+};
+
 export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'added' | 'removed' | 'changed'>('all');
@@ -102,14 +110,6 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
 
     return semanticLines;
   }, [result.leftFile.content, result.rightFile.content, result.changes, isDifferentFormats, viewMode]);
-
-  // Helper function to format values for display
-  const formatValue = (value: any): string => {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string') return value;
-    if (typeof value === 'object') return JSON.stringify(value, null, 2);
-    return String(value);
-  };
 
   // Memoized filtered diff
   const filteredDiff = useMemo(() => {
