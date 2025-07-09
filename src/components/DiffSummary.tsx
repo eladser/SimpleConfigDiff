@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComparisonResult } from '@/types';
 import { Plus, Minus, RefreshCw, BarChart3 } from 'lucide-react';
 
