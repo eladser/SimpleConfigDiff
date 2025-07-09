@@ -241,15 +241,17 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
                           Line {entry.leftLine}
                         </div>
                       )}
-                      <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto">
-                        {entry.type === 'added' ? (
-                          <span className="text-slate-400 dark:text-slate-500 italic">
-                            (not present)
-                          </span>
-                        ) : (
-                          formatValue(entry.leftValue)
-                        )}
-                      </pre>
+                      <div className="flex items-center justify-center min-h-[60px]">
+                        <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto text-center">
+                          {entry.type === 'added' ? (
+                            <span className="text-slate-400 dark:text-slate-500 italic">
+                              (not present)
+                            </span>
+                          ) : (
+                            formatValue(entry.leftValue)
+                          )}
+                        </pre>
+                      </div>
                     </div>
 
                     {/* Right Side */}
@@ -259,15 +261,17 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
                           Line {entry.rightLine}
                         </div>
                       )}
-                      <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto">
-                        {entry.type === 'removed' ? (
-                          <span className="text-slate-400 dark:text-slate-500 italic">
-                            (not present)
-                          </span>
-                        ) : (
-                          formatValue(entry.rightValue)
-                        )}
-                      </pre>
+                      <div className="flex items-center justify-center min-h-[60px]">
+                        <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto text-center">
+                          {entry.type === 'removed' ? (
+                            <span className="text-slate-400 dark:text-slate-500 italic">
+                              (not present)
+                            </span>
+                          ) : (
+                            formatValue(entry.rightValue)
+                          )}
+                        </pre>
+                      </div>
                     </div>
                   </div>
                 )}
