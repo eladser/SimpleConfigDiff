@@ -91,7 +91,6 @@ export function Minimap({ changes, totalLines, currentViewport, onViewportChange
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging || !containerRef.current) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
     const deltaY = e.clientY - dragStart.y;
     const deltaLines = Math.round((deltaY / minimapHeight) * totalLines);
     
@@ -109,8 +108,8 @@ export function Minimap({ changes, totalLines, currentViewport, onViewportChange
   const handleClick = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const clickY = e.clientY - rect.top;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const clickY = e.clientY - containerRect.top;
     const clickLine = Math.round((clickY / minimapHeight) * totalLines);
     
     const viewportSize = currentViewport.end - currentViewport.start;
