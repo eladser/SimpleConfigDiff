@@ -19,10 +19,20 @@ interface DirectoryUploadProps {
   className?: string;
 }
 
+interface ExtendedFileList extends FileList {
+  [index: number]: File;
+}
+
 const DEFAULT_SUPPORTED_EXTENSIONS = [
   '.json', '.yaml', '.yml', '.xml', '.ini', '.toml', '.env', 
   '.hcl', '.tf', '.properties', '.csv', '.config', '.conf'
 ];
+
+declare global {
+  interface HTMLInputElement {
+    webkitdirectory?: boolean;
+  }
+}
 
 export function DirectoryUpload({
   title,
@@ -153,11 +163,10 @@ export function DirectoryUpload({
       const files = await readDirectoryRecursively(directoryEntry);
       
       // Convert to FileList-like structure
-      const fileList = {
+      const fileList: ExtendedFileList = Object.assign(files, {
         length: files.length,
-        item: (index: number) => files[index] || null,
-        ...files
-      } as FileList;
+        item: (index: number) => files[index] || null
+      }) as ExtendedFileList;
 
       await processFiles(fileList);
     } catch (err) {
@@ -224,8 +233,7 @@ export function DirectoryUpload({
           type="file"
           onChange={handleFileSelect}
           className="hidden"
-          webkitdirectory=""
-          directory=""
+          {...({ webkitdirectory: true } as any)}
           multiple
         />
 
