@@ -16,15 +16,15 @@ export function DiffViewer({ result, options }: DiffViewerProps) {
   
   if (result.changes.length === 0) {
     return (
-      <div className="card animate-fade-in">
+      <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 p-6 animate-fade-in">
         <div className="text-center py-12">
-          <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <BarChart3 className="w-8 h-8 text-success-600" />
+          <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <BarChart3 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
             No Differences Found
           </h3>
-          <p className="text-gray-600">
+          <p className="text-slate-600 dark:text-slate-300">
             The configuration files are identical with the current comparison settings.
           </p>
         </div>
@@ -52,17 +52,17 @@ export function DiffViewer({ result, options }: DiffViewerProps) {
       </div>
       
       {/* Controls */}
-      <div className="card">
+      <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-700">View Mode:</span>
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">View Mode:</span>
+            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-xl p-1">
               <button
                 onClick={() => setViewMode('tree')}
-                className={`flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   viewMode === 'tree'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Grid className="w-4 h-4" />
@@ -70,10 +70,10 @@ export function DiffViewer({ result, options }: DiffViewerProps) {
               </button>
               <button
                 onClick={() => setViewMode('flat')}
-                className={`flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   viewMode === 'flat'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <List className="w-4 h-4" />
@@ -87,12 +87,12 @@ export function DiffViewer({ result, options }: DiffViewerProps) {
       </div>
       
       {/* Diff Results */}
-      <div className="card">
+      <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
             Changes ({result.changes.length})
           </h3>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-slate-500 dark:text-slate-400">
             {options.flattenKeys ? 'Flattened keys' : 'Nested structure'}
           </div>
         </div>
