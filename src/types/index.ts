@@ -1,4 +1,4 @@
-export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config';
+export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config' | 'hcl' | 'properties';
 
 export interface ConfigFile {
   name: string;
