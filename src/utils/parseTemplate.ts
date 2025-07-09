@@ -95,7 +95,7 @@ export class TemplateParser {
     
     // Block statements: {% block %} {% endblock %}
     if (current === '{' && this.peek(1) === '%') {
-      return this.parseJinja2Block(startLine, startColumn);
+      return this.parseJinja2BlockStatement(startLine, startColumn);
     }
     
     // Comments: {# comment #}
@@ -319,7 +319,6 @@ export class TemplateParser {
 
   private isTemplateStart(): boolean {
     const next = this.peek(1);
-    const nextNext = this.peek(2);
     
     switch (this.format) {
       case 'jinja2':
