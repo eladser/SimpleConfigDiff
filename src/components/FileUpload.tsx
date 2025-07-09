@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, File, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { Upload, File, CheckCircle, AlertCircle, X, Folder, FolderOpen } from 'lucide-react';
 import { FileUploadState } from '@/types';
 import { getFormatLabel, getFormatIcon, getSupportedExtensions } from '@/utils/parsers';
 
@@ -7,49 +7,119 @@ interface FileUploadProps {
   title: string;
   fileState: FileUploadState;
   onFileUpload: (file: File) => void;
+  onFolderUpload?: (files: FileList) => void;
   placeholder: string;
+  supportsFolders?: boolean;
 }
 
-export function FileUpload({ title, fileState, onFileUpload, placeholder }: FileUploadProps) {
+export function FileUpload({ 
+  title, 
+  fileState, 
+  onFileUpload, 
+  onFolderUpload, 
+  placeholder, 
+  supportsFolders = false 
+}: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [draggedItemType, setDraggedItemType] = useState<'file' | 'folder' | null>(null);
   
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
+    
+    // Detect if dragged items are files or folders
+    const items = Array.from(e.dataTransfer.items);
+    const hasDirectories = items.some(item => {
+      const entry = item.webkitGetAsEntry?.();
+      return entry?.isDirectory;
+    });
+    
+    setDraggedItemType(hasDirectories ? 'folder' : 'file');
   }, []);
   
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    setDraggedItemType(null);
   }, []);
   
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    setDraggedItemType(null);
     
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
+    const items = Array.from(e.dataTransfer.items);
+    
+    // Check if we have directory entries
+    const hasDirectories = items.some(item => {
+      const entry = item.webkitGetAsEntry?.();
+      return entry?.isDirectory;
+    });
+    
+    if (hasDirectories && supportsFolders && onFolderUpload) {
+      // Handle folder upload
+      onFolderUpload(e.dataTransfer.files);
+    } else if (files.length > 0) {
+      // Handle single file upload
       onFileUpload(files[0]);
     }
-  }, [onFileUpload]);
+  }, [onFileUpload, onFolderUpload, supportsFolders]);
   
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      onFileUpload(files[0]);
+      if (files.length === 1) {
+        onFileUpload(files[0]);
+      } else if (supportsFolders && onFolderUpload) {
+        onFolderUpload(files);
+      }
     }
-  }, [onFileUpload]);
+  }, [onFileUpload, onFolderUpload, supportsFolders]);
+  
+  const handleFolderSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0 && supportsFolders && onFolderUpload) {
+      onFolderUpload(files);
+    }
+  }, [onFolderUpload, supportsFolders]);
   
   const handleRemoveFile = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    // Reset file input
-    const input = document.getElementById(`file-input-${title}`) as HTMLInputElement;
-    if (input) {
-      input.value = '';
-    }
+    // Reset file inputs
+    const fileInput = document.getElementById(`file-input-${title}`) as HTMLInputElement;
+    const folderInput = document.getElementById(`folder-input-${title}`) as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+    if (folderInput) folderInput.value = '';
+  }, [title]);
+  
+  const openFileDialog = useCallback(() => {
+    document.getElementById(`file-input-${title}`)?.click();
+  }, [title]);
+  
+  const openFolderDialog = useCallback(() => {
+    document.getElementById(`folder-input-${title}`)?.click();
   }, [title]);
   
   const supportedExtensions = getSupportedExtensions();
+  
+  const getDragOverText = () => {
+    if (!isDragOver) return placeholder;
+    if (draggedItemType === 'folder') {
+      return supportsFolders ? 'Drop folder here' : 'Folders not supported - drop individual files';
+    }
+    return 'Drop file here';
+  };
+  
+  const getDragOverIcon = () => {
+    if (!isDragOver) return <Upload className="w-12 h-12 text-gray-400" />;
+    if (draggedItemType === 'folder') {
+      return supportsFolders ? 
+        <FolderOpen className="w-12 h-12 text-blue-500" /> : 
+        <Folder className="w-12 h-12 text-gray-400" />;
+    }
+    return <Upload className="w-12 h-12 text-blue-500" />;
+  };
   
   return (
     <div className="card">
@@ -64,25 +134,53 @@ export function FileUpload({ title, fileState, onFileUpload, placeholder }: File
       </div>
       
       {!fileState.file ? (
-        <div
-          className={`file-dropzone ${isDragOver ? 'active' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => document.getElementById(`file-input-${title}`)?.click()}
-        >
-          <div className="flex flex-col items-center gap-4">
-            <Upload className="w-12 h-12 text-gray-400" />
-            <div className="text-center">
-              <p className="text-lg font-medium text-gray-700 mb-1">
-                {placeholder}
-              </p>
-              <p className="text-sm text-gray-500">
-                Supported formats: {supportedExtensions.join(', ')}
-              </p>
+        <div>
+          <div
+            className={`file-dropzone ${isDragOver ? 'active' : ''} ${
+              isDragOver && draggedItemType === 'folder' && !supportsFolders ? 'border-red-300 bg-red-50' : ''
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={openFileDialog}
+          >
+            <div className="flex flex-col items-center gap-4">
+              {getDragOverIcon()}
+              <div className="text-center">
+                <p className={`text-lg font-medium mb-1 ${
+                  isDragOver && draggedItemType === 'folder' && !supportsFolders ? 'text-red-600' : 'text-gray-700'
+                }`}>
+                  {getDragOverText()}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Supported formats: {supportedExtensions.join(', ')}
+                </p>
+              </div>
             </div>
           </div>
           
+          {/* File upload buttons */}
+          <div className={`mt-4 flex gap-2 ${supportsFolders ? 'justify-center' : 'justify-center'}`}>
+            <button
+              onClick={openFileDialog}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <File className="w-4 h-4" />
+              Choose File
+            </button>
+            
+            {supportsFolders && (
+              <button
+                onClick={openFolderDialog}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Folder className="w-4 h-4" />
+                Choose Folder
+              </button>
+            )}
+          </div>
+          
+          {/* Hidden file inputs */}
           <input
             id={`file-input-${title}`}
             type="file"
@@ -90,6 +188,18 @@ export function FileUpload({ title, fileState, onFileUpload, placeholder }: File
             onChange={handleFileSelect}
             className="hidden"
           />
+          
+          {supportsFolders && (
+            <input
+              id={`folder-input-${title}`}
+              type="file"
+              webkitdirectory=""
+              directory=""
+              multiple
+              onChange={handleFolderSelect}
+              className="hidden"
+            />
+          )}
         </div>
       ) : (
         <div className="space-y-4">
