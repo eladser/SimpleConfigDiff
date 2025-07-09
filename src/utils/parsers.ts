@@ -5,111 +5,164 @@ import { parseXML } from './parseXML';
 import { parseINI } from './parseINI';
 import { parseTOML } from './parseTOML';
 import { parseENV } from './parseENV';
+import { parseHCL } from './parseHCL';
+import { parseProperties } from './parseProperties';
 
 export function detectFormat(filename: string, content: string): ConfigFormat {
-  // Try to detect by file extension first
-  const extension = filename.split('.').pop()?.toLowerCase();
+  const ext = filename.split('.').pop()?.toLowerCase();
   
-  if (extension === 'json') return 'json';
-  if (extension === 'yaml' || extension === 'yml') return 'yaml';
-  if (extension === 'xml') return 'xml';
-  if (extension === 'config') return 'config';
-  if (extension === 'ini') return 'ini';
-  if (extension === 'toml') return 'toml';
-  if (extension === 'env') return 'env';
-  
-  // Try to detect by content
+  // Check file extension first
+  switch (ext) {
+    case 'json':
+      return 'json';
+    case 'yaml':
+    case 'yml':
+      return 'yaml';
+    case 'xml':
+      return 'xml';
+    case 'ini':
+      return 'ini';
+    case 'toml':
+      return 'toml';
+    case 'env':
+      return 'env';
+    case 'hcl':
+    case 'tf':
+      return 'hcl';
+    case 'properties':
+      return 'properties';
+    case 'config':
+    case 'conf':
+      return 'config';
+    default:
+      return detectFormatByContent(content);
+  }
+}
+
+function detectFormatByContent(content: string): ConfigFormat {
   const trimmed = content.trim();
   
   // JSON detection
   if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
       (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    return 'json';
+    try {
+      JSON.parse(trimmed);
+      return 'json';
+    } catch {
+      // Not JSON, continue
+    }
   }
   
   // XML detection
-  if (trimmed.startsWith('<') && trimmed.includes('</')) {
+  if (trimmed.startsWith('<') && trimmed.includes('>')) {
     return 'xml';
   }
   
-  // YAML detection (key: value pattern)
-  if (/^[a-zA-Z_][a-zA-Z0-9_]*:\s*/.test(trimmed)) {
+  // YAML detection (common patterns)
+  if (trimmed.includes('---') || 
+      /^[a-zA-Z_][a-zA-Z0-9_]*\s*:\s*/.test(trimmed) ||
+      /^\s*-\s+/.test(trimmed)) {
     return 'yaml';
   }
   
-  // INI detection (sections with [header])
-  if (/^\[.*\]$/m.test(trimmed)) {
+  // HCL detection (Terraform patterns)
+  if (trimmed.includes('resource "') || 
+      trimmed.includes('provider "') ||
+      trimmed.includes('variable "') ||
+      trimmed.includes('data "')) {
+    return 'hcl';
+  }
+  
+  // Properties detection
+  if (/^[^=:]+[=:]/.test(trimmed) && !trimmed.includes('[')) {
+    return 'properties';
+  }
+  
+  // INI detection
+  if (trimmed.includes('[') && trimmed.includes(']') && trimmed.includes('=')) {
     return 'ini';
   }
   
-  // ENV detection (KEY=value pattern)
+  // TOML detection
+  if (trimmed.includes('[[') || 
+      (trimmed.includes('[') && trimmed.includes('=') && trimmed.includes('"'))) {
+    return 'toml';
+  }
+  
+  // ENV detection
   if (/^[A-Z_][A-Z0-9_]*=/.test(trimmed)) {
     return 'env';
   }
   
-  // TOML detection (key = value pattern)
-  if (/^[a-zA-Z_][a-zA-Z0-9_]*\s*=/.test(trimmed)) {
-    return 'toml';
-  }
-  
-  // Default to JSON
-  return 'json';
+  // Default to config
+  return 'config';
 }
 
 export function parseConfig(content: string, format: ConfigFormat): ParsedConfig {
-  try {
-    switch (format) {
-      case 'json':
-        return parseJSON(content);
-      case 'yaml':
-        return parseYAML(content);
-      case 'xml':
-      case 'config':
-        return parseXML(content);
-      case 'ini':
-        return parseINI(content);
-      case 'toml':
-        return parseTOML(content);
-      case 'env':
-        return parseENV(content);
-      default:
-        throw new Error(`Unsupported format: ${format}`);
-    }
-  } catch (error) {
-    return {
-      data: {},
-      format,
-      error: error instanceof Error ? error.message : 'Unknown parsing error'
-    };
+  switch (format) {
+    case 'json':
+      return parseJSON(content);
+    case 'yaml':
+      return parseYAML(content);
+    case 'xml':
+      return parseXML(content);
+    case 'ini':
+      return parseINI(content);
+    case 'toml':
+      return parseTOML(content);
+    case 'env':
+      return parseENV(content);
+    case 'hcl':
+      return parseHCL(content);
+    case 'properties':
+      return parseProperties(content);
+    case 'config':
+      return parseINI(content); // Default to INI for generic config files
+    default:
+      return {
+        data: {},
+        format,
+        error: `Unsupported format: ${format}`
+      };
   }
 }
 
-export function getFormatLabel(format: ConfigFormat): string {
-  const labels: Record<ConfigFormat, string> = {
-    json: 'JSON',
-    yaml: 'YAML',
-    xml: 'XML',
-    config: '.config',
-    ini: 'INI',
-    toml: 'TOML',
-    env: 'ENV'
-  };
-  return labels[format];
-}
+export const formatNames: Record<ConfigFormat, string> = {
+  json: 'JSON',
+  yaml: 'YAML',
+  xml: 'XML',
+  config: 'Config',
+  ini: 'INI',
+  toml: 'TOML',
+  env: 'Environment',
+  hcl: 'HCL/Terraform',
+  properties: 'Properties'
+};
 
-export function getFormatIcon(format: ConfigFormat): string {
-  const icons: Record<ConfigFormat, string> = {
-    json: '{}',
-    yaml: '📄',
-    xml: '</>',
-    config: '⚙️',
-    ini: '📝',
-    toml: '🔧',
-    env: '🌍'
-  };
-  return icons[format];
-}
+export const formatExtensions: Record<ConfigFormat, string> = {
+  json: '.json',
+  yaml: '.yaml/.yml',
+  xml: '.xml',
+  config: '.config/.conf',
+  ini: '.ini',
+  toml: '.toml',
+  env: '.env',
+  hcl: '.hcl/.tf',
+  properties: '.properties'
+};
 
-export function getSupportedExtensions(): string[] {
-  return ['.json', '.yaml', '.yml', '.xml', '.config', '.ini', '.toml', '.env'];
+export function getFormatDescription(format: ConfigFormat): string {
+  const descriptions: Record<ConfigFormat, string> = {
+    json: 'JavaScript Object Notation',
+    yaml: 'YAML Ain\'t Markup Language',
+    xml: 'eXtensible Markup Language',
+    config: 'Generic Configuration File',
+    ini: 'Initialization File',
+    toml: 'Tom\'s Obvious, Minimal Language',
+    env: 'Environment Variables',
+    hcl: 'HashiCorp Configuration Language',
+    properties: 'Java Properties File'
+  };
+  
+  return descriptions[format] || 'Unknown format';
 }
