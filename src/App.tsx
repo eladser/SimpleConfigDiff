@@ -7,7 +7,8 @@ import { Header } from '@/components/Header';
 import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
-import { RefreshCw, Download, BarChart3, Layers, SplitSquareHorizontal } from 'lucide-react';
+import { downloadDiff } from '@/utils/exportDiff';
+import { RefreshCw, Download, BarChart3, Layers, SplitSquareHorizontal, ChevronDown } from 'lucide-react';
 
 function App() {
   const [leftFile, setLeftFile] = useState<FileUploadState>({
@@ -44,6 +45,7 @@ function App() {
   const [viewSettings, setViewSettings] = useState<DiffViewSettings>({
     highlightSyntax: true,
     showMinimap: false,
+    showLineNumbers: true,
     wrapLines: true,
     fontSize: 14,
     theme: 'vs-dark'
@@ -52,6 +54,7 @@ function App() {
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [isComparing, setIsComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   
   const handleFileUpload = useCallback((file: File, side: 'left' | 'right') => {
     const reader = new FileReader();
@@ -140,27 +143,16 @@ function App() {
     setError(null);
   }, []);
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback((format: 'json' | 'csv' | 'html' | 'patch') => {
     if (!comparisonResult) return;
     
-    const exportData = {
-      comparison: comparisonResult,
-      options,
-      timestamp: new Date().toISOString()
-    };
-    
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json'
+    downloadDiff(comparisonResult, options, format, {
+      includeMetadata: true,
+      includeStats: true,
+      includeContext: true
     });
     
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `diff-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
   }, [comparisonResult, options]);
 
   const handleDiffModeChange = useCallback((mode: 'tree' | 'side-by-side' | 'unified') => {
@@ -230,13 +222,47 @@ function App() {
             </button>
 
             {comparisonResult && (
-              <button
-                onClick={handleExport}
-                className="btn btn-secondary px-4 py-3 flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="btn btn-secondary px-4 py-3 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                
+                {showExportMenu && (
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                    <div className="py-1">
+                      <button
+                        onClick={() => handleExport('json')}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        JSON Report
+                      </button>
+                      <button
+                        onClick={() => handleExport('csv')}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        CSV Export
+                      </button>
+                      <button
+                        onClick={() => handleExport('html')}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        HTML Report
+                      </button>
+                      <button
+                        onClick={() => handleExport('patch')}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        Patch File
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
           
@@ -350,6 +376,14 @@ function App() {
           </div>
         )}
       </div>
+      
+      {/* Click outside to close export menu */}
+      {showExportMenu && (
+        <div
+          className="fixed inset-0 z-5"
+          onClick={() => setShowExportMenu(false)}
+        />
+      )}
     </div>
   );
 }
