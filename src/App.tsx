@@ -4,7 +4,7 @@ import { DiffViewer } from '@/components/DiffViewer';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
 import { Header } from '@/components/Header';
-import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings, ConfigFormat } from '@/types';
+import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
