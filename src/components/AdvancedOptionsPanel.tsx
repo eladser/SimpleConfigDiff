@@ -4,12 +4,10 @@ import {
   Settings, 
   Plus, 
   Trash2, 
-  Info, 
   ChevronDown,
   ChevronRight,
   HelpCircle,
   Eye,
-  EyeOff,
   Zap,
   Shield,
   Filter
@@ -22,7 +20,6 @@ interface AdvancedOptionsPanelProps {
 
 export function AdvancedOptionsPanel({ options, onOptionsChange }: AdvancedOptionsPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basic']));
-  const [showHelp, setShowHelp] = useState<Record<string, boolean>>({});
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -32,10 +29,6 @@ export function AdvancedOptionsPanel({ options, onOptionsChange }: AdvancedOptio
       newExpanded.add(section);
     }
     setExpandedSections(newExpanded);
-  };
-
-  const toggleHelp = (key: string) => {
-    setShowHelp(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const addPathRule = () => {
