@@ -483,10 +483,17 @@ function App() {
                   </pre>
                 </div>
               ) : (
-                <DiffViewer
-                  result={comparisonResult}
-                  options={options}
-                />
+                <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                      Tree View - Changes ({comparisonResult.changes.length})
+                    </h3>
+                  </div>
+                  <DiffViewer
+                    result={comparisonResult}
+                    options={options}
+                  />
+                </div>
               )}
             </div>
           </div>
