@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { DiffViewer } from '@/components/DiffViewer';
-import { OptionsPanel } from '@/components/OptionsPanel';
+import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
+import { SideBySideDiff } from '@/components/SideBySideDiff';
 import { Header } from '@/components/Header';
-import { FileUploadState, DiffOptions, ComparisonResult } from '@/types';
+import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Download, BarChart3, Layers, SplitSquareHorizontal } from 'lucide-react';
 
 function App() {
   const [leftFile, setLeftFile] = useState<FileUploadState>({
@@ -27,7 +28,25 @@ function App() {
     ignoreKeys: [],
     caseSensitive: true,
     sortKeys: false,
-    flattenKeys: false
+    flattenKeys: false,
+    // New advanced options with defaults
+    semanticComparison: false,
+    ignoreWhitespace: false,
+    ignoreComments: false,
+    pathRules: [],
+    valueTransformations: [],
+    diffMode: 'tree',
+    showLineNumbers: true,
+    contextLines: 3,
+    minimalDiff: false
+  });
+  
+  const [viewSettings, setViewSettings] = useState<DiffViewSettings>({
+    highlightSyntax: true,
+    showMinimap: false,
+    wrapLines: true,
+    fontSize: 14,
+    theme: 'vs-dark'
   });
   
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
@@ -46,7 +65,9 @@ function App() {
         content,
         format,
         isValid: !parsed.error,
-        error: parsed.error
+        error: parsed.error,
+        lineCount: content.split('\n').length,
+        size: file.size
       };
       
       if (side === 'left') {
@@ -118,6 +139,33 @@ function App() {
     setComparisonResult(null);
     setError(null);
   }, []);
+
+  const handleExport = useCallback(() => {
+    if (!comparisonResult) return;
+    
+    const exportData = {
+      comparison: comparisonResult,
+      options,
+      timestamp: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json'
+    });
+    
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `diff-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [comparisonResult, options]);
+
+  const handleDiffModeChange = useCallback((mode: 'tree' | 'side-by-side' | 'unified') => {
+    setOptions(prev => ({ ...prev, diffMode: mode }));
+  }, []);
   
   const canCompare = leftFile.isValid && rightFile.isValid;
   
@@ -143,11 +191,13 @@ function App() {
           />
         </div>
         
-        {/* Options Panel */}
-        <OptionsPanel
-          options={options}
-          onOptionsChange={setOptions}
-        />
+        {/* Advanced Options Panel */}
+        <div className="mb-8">
+          <AdvancedOptionsPanel
+            options={options}
+            onOptionsChange={setOptions}
+          />
+        </div>
         
         {/* Controls */}
         <div className="flex items-center justify-between mb-8">
@@ -178,11 +228,60 @@ function App() {
             >
               Reset
             </button>
+
+            {comparisonResult && (
+              <button
+                onClick={handleExport}
+                className="btn btn-secondary px-4 py-3 flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+            )}
           </div>
           
           {comparisonResult && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Found {comparisonResult.summary.total} differences
+            <div className="flex items-center gap-6">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Found {comparisonResult.summary.total} differences
+              </div>
+              
+              {/* Diff Mode Toggle */}
+              <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => handleDiffModeChange('tree')}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm transition-colors ${
+                    options.diffMode === 'tree' 
+                      ? 'bg-white dark:bg-gray-700 shadow-sm' 
+                      : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                  Tree
+                </button>
+                <button
+                  onClick={() => handleDiffModeChange('side-by-side')}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm transition-colors ${
+                    options.diffMode === 'side-by-side' 
+                      ? 'bg-white dark:bg-gray-700 shadow-sm' 
+                      : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  <SplitSquareHorizontal className="w-4 h-4" />
+                  Side-by-Side
+                </button>
+                <button
+                  onClick={() => handleDiffModeChange('unified')}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm transition-colors ${
+                    options.diffMode === 'unified' 
+                      ? 'bg-white dark:bg-gray-700 shadow-sm' 
+                      : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Unified
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -199,10 +298,56 @@ function App() {
         
         {/* Results */}
         {comparisonResult && (
-          <DiffViewer
-            result={comparisonResult}
-            options={options}
-          />
+          <div className="space-y-6">
+            {/* Statistics Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {comparisonResult.summary.added}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Added</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                  {comparisonResult.summary.removed}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Removed</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {comparisonResult.summary.changed}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Changed</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                  {comparisonResult.stats.similarities.toFixed(1)}%
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Similarity</div>
+              </div>
+            </div>
+
+            {/* Diff Viewer */}
+            {options.diffMode === 'side-by-side' ? (
+              <SideBySideDiff
+                result={comparisonResult}
+                settings={viewSettings}
+                onSettingsChange={setViewSettings}
+              />
+            ) : options.diffMode === 'unified' ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold mb-4">Unified Diff</h3>
+                <pre className="text-sm font-mono bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                  {comparisonResult.unifiedDiff || 'No unified diff available'}
+                </pre>
+              </div>
+            ) : (
+              <DiffViewer
+                result={comparisonResult}
+                options={options}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
