@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, FileText, FolderOpen, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 interface DirectoryFile {
