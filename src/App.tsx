@@ -110,7 +110,7 @@ function App() {
     }
   }, []);
 
-  const handleCompare = useCallback(async () => {
+  const performComparison = useCallback(async () => {
     if (!leftFile.isValid || !rightFile.isValid) {
       setError('Please provide two valid configuration files or texts');
       return;
@@ -154,6 +154,21 @@ function App() {
       setIsComparing(false);
     }
   }, [leftFile, rightFile, options]);
+
+  const handleCompare = useCallback(() => {
+    performComparison();
+  }, [performComparison]);
+
+  const handleRecompare = useCallback(() => {
+    // Clear previous results and perform a fresh comparison with current settings
+    setComparisonResult(null);
+    setError(null);
+    
+    // Small delay to show the refresh is happening
+    setTimeout(() => {
+      performComparison();
+    }, 100);
+  }, [performComparison]);
   
   const handleReset = useCallback(() => {
     setLeftFile({
@@ -201,12 +216,6 @@ function App() {
   const handleDiffModeChange = useCallback((mode: 'tree' | 'side-by-side' | 'unified') => {
     setOptions(prev => ({ ...prev, diffMode: mode }));
   }, []);
-
-  const handleRecompare = useCallback(() => {
-    if (comparisonResult) {
-      handleCompare();
-    }
-  }, [comparisonResult, handleCompare]);
 
   const generateUnifiedDiff = useCallback(() => {
     if (!comparisonResult) return 'No comparison result available';
@@ -271,10 +280,10 @@ function App() {
                   <button
                     onClick={handleRecompare}
                     disabled={isComparing}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700/70 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700/70 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
                   >
                     <RefreshCw className={`w-4 h-4 ${isComparing ? 'animate-spin' : ''}`} />
-                    Re-compare
+                    {isComparing ? 'Re-comparing...' : 'Re-compare'}
                   </button>
                   
                   <button
