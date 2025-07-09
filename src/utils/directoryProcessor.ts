@@ -193,18 +193,18 @@ export class DirectoryProcessor {
     const patterns = new Map<string, BatchFile[]>();
     
     for (const file of files) {
-      const filePattern = this.extractFilePattern(file.name);
-      if (!patterns.has(filePattern)) {
-        patterns.set(filePattern, []);
+      const extractedPattern = this.extractFilePattern(file.name);
+      if (!patterns.has(extractedPattern)) {
+        patterns.set(extractedPattern, []);
       }
-      patterns.get(filePattern)!.push(file);
+      patterns.get(extractedPattern)!.push(file);
     }
     
     return Array.from(patterns.entries())
-      .map(([filePattern, matchedFiles]) => ({
-        pattern: filePattern,
+      .map(([extractedPattern, matchedFiles]) => ({
+        pattern: extractedPattern,
         files: matchedFiles,
-        confidence: this.calculatePatternConfidence(filePattern, matchedFiles)
+        confidence: this.calculatePatternConfidence(extractedPattern, matchedFiles)
       }))
       .filter(group => group.files.length > 1)
       .sort((a, b) => b.confidence - a.confidence);
@@ -212,7 +212,7 @@ export class DirectoryProcessor {
 
   private extractFilePattern(filename: string): string {
     // Remove common versioning patterns
-    let filePattern = filename
+    let extractedPattern = filename
       .replace(/[-_]v?\d+(\.\d+)*/, '') // version numbers
       .replace(/[-_]\d{4}-\d{2}-\d{2}/, '') // dates
       .replace(/[-_]\d{8}/, '') // date stamps
@@ -220,10 +220,10 @@ export class DirectoryProcessor {
       .replace(/[-_](prod|dev|test|staging)/, '') // environment suffixes
       .replace(/\.[^.]+$/, ''); // extension
     
-    return filePattern;
+    return extractedPattern;
   }
 
-  private calculatePatternConfidence(filePattern: string, files: BatchFile[]): number {
+  private calculatePatternConfidence(extractedPattern: string, files: BatchFile[]): number {
     if (files.length < 2) return 0;
     
     let confidence = 0;
