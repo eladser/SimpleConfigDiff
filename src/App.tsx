@@ -4,7 +4,7 @@ import { DiffViewer } from '@/components/DiffViewer';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
 import { Header } from '@/components/Header';
-import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from '@/types';
+import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings, ConfigFormat } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
@@ -22,7 +22,9 @@ import {
   TrendingUp,
   Zap,
   ArrowRight,
-  FileText
+  FileText,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 function App() {
@@ -40,7 +42,7 @@ function App() {
     isValid: false
   });
 
-  // Updated default options with all features disabled by default
+  // Updated default options - show differences by default
   const [options, setOptions] = useState<DiffOptions>({
     ignoreKeys: [],
     caseSensitive: false,
@@ -51,7 +53,7 @@ function App() {
     ignoreComments: false,
     pathRules: [],
     valueTransformations: [],
-    diffMode: 'tree',
+    diffMode: 'side-by-side', // Default to side-by-side for better UX
     showLineNumbers: true,
     contextLines: 3,
     minimalDiff: false
@@ -98,9 +100,30 @@ function App() {
     reader.readAsText(file);
   }, []);
 
+  const handleTextPaste = useCallback((text: string, format: string, side: 'left' | 'right') => {
+    const configFormat = format as ConfigFormat;
+    const parsed = parseConfig(text, configFormat);
+    
+    const fileState: FileUploadState = {
+      file: null,
+      content: text,
+      format: configFormat,
+      isValid: !parsed.error,
+      error: parsed.error,
+      lineCount: text.split('\n').length,
+      size: new Blob([text]).size
+    };
+    
+    if (side === 'left') {
+      setLeftFile(fileState);
+    } else {
+      setRightFile(fileState);
+    }
+  }, []);
+
   const handleCompare = useCallback(async () => {
-    if (!leftFile.isValid || !rightFile.isValid || !leftFile.file || !rightFile.file) {
-      setError('Please upload two valid configuration files');
+    if (!leftFile.isValid || !rightFile.isValid) {
+      setError('Please provide two valid configuration files or texts');
       return;
     }
     
@@ -120,14 +143,14 @@ function App() {
       }
       
       const leftConfigFile = {
-        name: leftFile.file.name,
+        name: leftFile.file?.name || 'Left Text',
         content: leftFile.content,
         format: leftFile.format!,
         parsedContent: leftParsed.data
       };
       
       const rightConfigFile = {
-        name: rightFile.file.name,
+        name: rightFile.file?.name || 'Right Text',
         content: rightFile.content,
         format: rightFile.format!,
         parsedContent: rightParsed.data
@@ -200,8 +223,8 @@ function App() {
     if (!comparisonResult) return 'No comparison result available';
     
     const lines = [];
-    lines.push(`--- ${leftFile.file?.name || 'File A'}`);
-    lines.push(`+++ ${rightFile.file?.name || 'File B'}`);
+    lines.push(`--- ${leftFile.file?.name || 'Left Text'}`);
+    lines.push(`+++ ${rightFile.file?.name || 'Right Text'}`);
     lines.push('');
     
     // Generate unified diff from changes
@@ -226,7 +249,7 @@ function App() {
   }, [comparisonResult, leftFile, rightFile]);
   
   const canCompare = leftFile.isValid && rightFile.isValid;
-  const hasFiles = leftFile.file || rightFile.file;
+  const hasFiles = leftFile.file || rightFile.file || leftFile.content || rightFile.content;
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900">
@@ -239,18 +262,18 @@ function App() {
           <div className="mb-8 animate-fade-in">
             
             {/* Results Header */}
-            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-white/20 dark:border-slate-700/50 mb-6">
+            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50 mb-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-4">
                   <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl shadow-lg">
                     <CheckCircle className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                       Comparison Results
                     </h2>
                     <p className="text-slate-600 dark:text-slate-300">
-                      Found {comparisonResult.summary.total} differences between your files
+                      Found {comparisonResult.summary.total} differences between your configurations
                     </p>
                   </div>
                 </div>
@@ -259,7 +282,7 @@ function App() {
                   <button
                     onClick={handleRecompare}
                     disabled={isComparing}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700/70 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 shadow-sm hover:shadow-md"
                   >
                     <RefreshCw className={`w-4 h-4 ${isComparing ? 'animate-spin' : ''}`} />
                     Re-compare
@@ -270,11 +293,11 @@ function App() {
                     className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
                       showAdvancedOptions 
                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
-                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                        : 'bg-slate-100 dark:bg-slate-700/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
                     }`}
                   >
                     <Settings className="w-4 h-4" />
-                    Options
+                    {showAdvancedOptions ? 'Hide Options' : 'Advanced Options'}
                   </button>
 
                   <div className="relative">
@@ -288,29 +311,29 @@ function App() {
                     </button>
                     
                     {showExportMenu && (
-                      <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-white/20 dark:border-slate-700/50 backdrop-blur-xl z-30 animate-scale-in">
+                      <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-xl z-30 animate-scale-in">
                         <div className="py-2">
                           <button
                             onClick={() => handleExport('json')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
                           >
                             📄 JSON Report
                           </button>
                           <button
                             onClick={() => handleExport('csv')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
                           >
                             📊 CSV Export
                           </button>
                           <button
                             onClick={() => handleExport('html')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
                           >
                             🌐 HTML Report
                           </button>
                           <button
                             onClick={() => handleExport('patch')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
                           >
                             📝 Patch File
                           </button>
@@ -323,7 +346,7 @@ function App() {
 
               {/* Statistics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 rounded-xl p-4 border border-emerald-200/50 dark:border-emerald-800/50">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl p-4 border border-emerald-200/50 dark:border-emerald-700/50">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
@@ -331,13 +354,13 @@ function App() {
                       </div>
                       <div className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Added</div>
                     </div>
-                    <div className="p-2 bg-emerald-200 dark:bg-emerald-800 rounded-lg">
+                    <div className="p-2 bg-emerald-200 dark:bg-emerald-800/50 rounded-lg">
                       <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                     </div>
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-br from-red-50 to-pink-50 dark:from-red-900/30 dark:to-pink-900/30 rounded-xl p-4 border border-red-200/50 dark:border-red-800/50">
+                <div className="bg-gradient-to-br from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-red-200/50 dark:border-red-700/50">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-red-600 dark:text-red-400">
@@ -345,13 +368,13 @@ function App() {
                       </div>
                       <div className="text-sm font-medium text-red-700 dark:text-red-300">Removed</div>
                     </div>
-                    <div className="p-2 bg-red-200 dark:bg-red-800 rounded-lg">
+                    <div className="p-2 bg-red-200 dark:bg-red-800/50 rounded-lg">
                       <TrendingUp className="w-5 h-5 text-red-600 dark:text-red-400 rotate-180" />
                     </div>
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 rounded-xl p-4 border border-blue-200/50 dark:border-blue-800/50">
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-4 border border-blue-200/50 dark:border-blue-700/50">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
@@ -359,13 +382,13 @@ function App() {
                       </div>
                       <div className="text-sm font-medium text-blue-700 dark:text-blue-300">Changed</div>
                     </div>
-                    <div className="p-2 bg-blue-200 dark:bg-blue-800 rounded-lg">
+                    <div className="p-2 bg-blue-200 dark:bg-blue-800/50 rounded-lg">
                       <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-xl p-4 border border-purple-200/50 dark:border-purple-800/50">
+                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-purple-200/50 dark:border-purple-700/50">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
@@ -373,7 +396,7 @@ function App() {
                       </div>
                       <div className="text-sm font-medium text-purple-700 dark:text-purple-300">Similarity</div>
                     </div>
-                    <div className="p-2 bg-purple-200 dark:bg-purple-800 rounded-lg">
+                    <div className="p-2 bg-purple-200 dark:bg-purple-800/50 rounded-lg">
                       <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                     </div>
                   </div>
@@ -382,39 +405,39 @@ function App() {
 
               {/* View Mode Toggle */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                   <span className="font-medium">View Mode:</span>
                 </div>
                 
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 rounded-xl p-1">
-                  <button
-                    onClick={() => handleDiffModeChange('tree')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      options.diffMode === 'tree' 
-                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-white' 
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <Layers className="w-4 h-4" />
-                    Tree
-                  </button>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/70 rounded-xl p-1">
                   <button
                     onClick={() => handleDiffModeChange('side-by-side')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                       options.diffMode === 'side-by-side' 
-                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-white' 
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
                     }`}
                   >
                     <SplitSquareHorizontal className="w-4 h-4" />
                     Side-by-Side
                   </button>
                   <button
+                    onClick={() => handleDiffModeChange('tree')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      options.diffMode === 'tree' 
+                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4" />
+                    Tree
+                  </button>
+                  <button
                     onClick={() => handleDiffModeChange('unified')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                       options.diffMode === 'unified' 
-                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-white' 
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
                     }`}
                   >
                     <FileText className="w-4 h-4" />
@@ -443,9 +466,9 @@ function App() {
                   onSettingsChange={setViewSettings}
                 />
               ) : options.diffMode === 'unified' ? (
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-white/20 dark:border-slate-700/50">
-                  <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">Unified Diff</h3>
-                  <pre className="text-sm font-mono bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl overflow-x-auto whitespace-pre-wrap text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
+                  <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">Unified Diff</h3>
+                  <pre className="text-sm font-mono bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl overflow-x-auto whitespace-pre-wrap text-slate-800 dark:text-slate-200 border border-slate-200/50 dark:border-slate-700/50">
                     {generateUnifiedDiff()}
                   </pre>
                 </div>
@@ -462,14 +485,14 @@ function App() {
         {/* Hero Section */}
         {!comparisonResult && (
           <div className="text-center mb-12 animate-fade-in">
-            <h1 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-white mb-6">
+            <h1 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-slate-100 mb-6">
               Compare Configuration Files
               <span className="block text-4xl md:text-5xl bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent mt-2">
                 with Intelligence
               </span>
             </h1>
             <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
-              Upload two configuration files and get intelligent, human-readable diffs with advanced analysis and beautiful visualizations
+              Upload files or paste text to get intelligent, human-readable diffs with advanced analysis and beautiful visualizations
             </p>
           </div>
         )}
@@ -478,18 +501,20 @@ function App() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <div className="group">
             <FileUpload
-              title="Configuration File A"
+              title="Configuration A"
               fileState={leftFile}
               onFileUpload={(file) => handleFileUpload(file, 'left')}
+              onTextPaste={(text, format) => handleTextPaste(text, format, 'left')}
               placeholder="Drop your first config file here or click to browse"
             />
           </div>
           
           <div className="group">
             <FileUpload
-              title="Configuration File B"
+              title="Configuration B"
               fileState={rightFile}
               onFileUpload={(file) => handleFileUpload(file, 'right')}
+              onTextPaste={(text, format) => handleTextPaste(text, format, 'right')}
               placeholder="Drop your second config file here or click to browse"
             />
           </div>
@@ -498,7 +523,7 @@ function App() {
         {/* Upload Status & Compare */}
         {hasFiles && (
           <div className="mb-8 animate-slide-up">
-            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-white/20 dark:border-slate-700/50">
+            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-6">
                   <div className="flex items-center space-x-3">
@@ -508,11 +533,11 @@ function App() {
                       <AlertCircle className="w-6 h-6 text-red-500" />
                     )}
                     <div>
-                      <p className="font-medium text-slate-900 dark:text-white">
-                        {leftFile.file?.name || 'No file selected'}
+                      <p className="font-medium text-slate-900 dark:text-slate-100">
+                        {leftFile.file?.name || (leftFile.content ? 'Pasted Text' : 'No input')}
                       </p>
                       <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {leftFile.isValid ? 'Ready to compare' : 'Invalid file format'}
+                        {leftFile.isValid ? 'Ready to compare' : 'Invalid format'}
                       </p>
                     </div>
                   </div>
@@ -528,11 +553,11 @@ function App() {
                       <AlertCircle className="w-6 h-6 text-red-500" />
                     )}
                     <div>
-                      <p className="font-medium text-slate-900 dark:text-white">
-                        {rightFile.file?.name || 'No file selected'}
+                      <p className="font-medium text-slate-900 dark:text-slate-100">
+                        {rightFile.file?.name || (rightFile.content ? 'Pasted Text' : 'No input')}
                       </p>
                       <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {rightFile.isValid ? 'Ready to compare' : 'Invalid file format'}
+                        {rightFile.isValid ? 'Ready to compare' : 'Invalid format'}
                       </p>
                     </div>
                   </div>
@@ -541,7 +566,7 @@ function App() {
                 <div className="flex items-center space-x-4">
                   <button
                     onClick={handleReset}
-                    className="px-6 py-3 text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-all duration-200 font-medium"
+                    className="px-6 py-3 text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-700/70 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-all duration-200 font-medium"
                   >
                     Reset
                   </button>
@@ -563,7 +588,7 @@ function App() {
                     ) : (
                       <>
                         <Zap className="w-5 h-5" />
-                        Compare Files
+                        Compare
                       </>
                     )}
                   </button>
@@ -576,10 +601,10 @@ function App() {
         {/* Error Display */}
         {error && (
           <div className="mb-8 animate-shake">
-            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 rounded-2xl p-6 backdrop-blur-xl">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-2xl p-6 backdrop-blur-xl">
               <div className="flex items-center">
                 <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400 mr-3" />
-                <div className="text-red-800 dark:text-red-300 font-medium text-lg">Error</div>
+                <div className="text-red-800 dark:text-red-200 font-medium text-lg">Error</div>
               </div>
               <div className="text-red-700 dark:text-red-300 mt-2">{error}</div>
             </div>
