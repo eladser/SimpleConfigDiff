@@ -204,7 +204,7 @@ export class DirectoryProcessor {
       .map(([pattern, matchedFiles]) => ({
         pattern,
         files: matchedFiles,
-        confidence: this.calculatePatternConfidence(pattern, matchedFiles)
+        confidence: this.calculatePatternConfidence(matchedFiles)
       }))
       .filter(group => group.files.length > 1)
       .sort((a, b) => b.confidence - a.confidence);
@@ -212,7 +212,7 @@ export class DirectoryProcessor {
 
   private extractFilePattern(filename: string): string {
     // Remove common versioning patterns
-    let extractedPattern = filename
+    const extractedPattern = filename
       .replace(/[-_]v?\d+(\.\d+)*/, '') // version numbers
       .replace(/[-_]\d{4}-\d{2}-\d{2}/, '') // dates
       .replace(/[-_]\d{8}/, '') // date stamps
@@ -223,7 +223,7 @@ export class DirectoryProcessor {
     return extractedPattern;
   }
 
-  private calculatePatternConfidence(pattern: string, files: BatchFile[]): number {
+  private calculatePatternConfidence(files: BatchFile[]): number {
     if (files.length < 2) return 0;
     
     let confidence = 0;
@@ -317,7 +317,7 @@ export class DirectoryProcessor {
     // Add pairs for files in same directory with similar names
     const byDirectory = this.groupByDirectory(files);
     
-    for (const [directory, dirFiles] of byDirectory) {
+    for (const [, dirFiles] of byDirectory) {
       if (dirFiles.length >= 2) {
         const similarPairs = this.findSimilarNamedFiles(dirFiles);
         
@@ -332,7 +332,7 @@ export class DirectoryProcessor {
             pairs.push({
               left: pair.left,
               right: pair.right,
-              reason: `Files have similar names in directory "${directory}"`,
+              reason: `Files have similar names in same directory`,
               confidence: pair.similarity * 100
             });
           }
