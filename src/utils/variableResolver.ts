@@ -126,7 +126,6 @@ export class VariableResolver {
     const defaultMatch = expression.match(/^([^:]+)(:[-]?)(.*)$/);
     const varName = defaultMatch ? defaultMatch[1].trim() : expression.trim();
     const defaultValue = defaultMatch ? defaultMatch[3] : undefined;
-    const hasDefaultSeparator = defaultMatch && defaultMatch[2] === ':-';
 
     // Check for circular references
     if (this.processedVariables.has(varName)) {
@@ -218,8 +217,8 @@ export class VariableResolver {
     }
     
     // Node.js environment
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[name];
+    if (typeof global !== 'undefined' && (global as any).process?.env) {
+      return (global as any).process.env[name];
     }
     
     return undefined;
@@ -253,9 +252,9 @@ export class VariableResolver {
 
     // Add custom variables
     if (this.options.customVariables) {
-      for (const [name, value] of Object.entries(this.options.customVariables)) {
-        this.variables.set(name, {
-          name,
+      for (const [varName, value] of Object.entries(this.options.customVariables)) {
+        this.variables.set(varName, {
+          name: varName,
           value,
           source: 'override'
         });
@@ -264,10 +263,10 @@ export class VariableResolver {
 
     // Add default values
     if (this.options.defaultValues) {
-      for (const [name, value] of Object.entries(this.options.defaultValues)) {
-        if (!this.variables.has(name)) {
-          this.variables.set(name, {
-            name,
+      for (const [varName, value] of Object.entries(this.options.defaultValues)) {
+        if (!this.variables.has(varName)) {
+          this.variables.set(varName, {
+            name: varName,
             value,
             source: 'default'
           });
@@ -471,7 +470,7 @@ export function detectEnvironmentVariables(content: string): {
     { name: 'template', regex: /\{\{([^}]+)\}\}/g, description: 'Template-style {{VAR}}' }
   ];
 
-  for (const { name, regex, description } of syntaxPatterns) {
+  for (const { description, regex } of syntaxPatterns) {
     const matches: Array<{
       variable: string;
       match: string;
