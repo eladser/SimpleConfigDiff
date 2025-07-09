@@ -7,14 +7,22 @@ import {
   Search, 
   Filter, 
   X, 
-  Eye, 
-  EyeOff,
   GitBranch,
   FileText
 } from 'lucide-react';
 
 interface SideBySideDiffProps {
   result: ComparisonResult;
+}
+
+interface DiffItem {
+  key: string;
+  path: string;
+  leftContent: string;
+  rightContent: string;
+  type: 'unchanged' | 'added' | 'removed' | 'changed';
+  isPath: boolean;
+  description?: string;
 }
 
 export function SideBySideDiff({ result }: SideBySideDiffProps) {
@@ -42,7 +50,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
       const rightLines = result.rightFile.content.split('\n');
       const maxLines = Math.max(leftLines.length, rightLines.length);
       
-      const lines = [];
+      const lines: DiffItem[] = [];
       for (let i = 0; i < maxLines; i++) {
         const leftLine = leftLines[i] || '';
         const rightLine = rightLines[i] || '';
@@ -68,7 +76,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
     }
 
     // Use semantic diff based on changes
-    const semanticLines = [];
+    const semanticLines: DiffItem[] = [];
     
     // Group changes by path for better organization
     const changesByPath = new Map<string, typeof result.changes[0]>();
@@ -352,7 +360,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
             </div>
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
-              {filteredDiff.map((item, index) => (
+              {filteredDiff.map((item) => (
                 <div
                   key={item.key}
                   className={`transition-colors ${getItemTypeClass(item.type)}`}
