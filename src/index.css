@@ -12,6 +12,11 @@
     @apply bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100;
     @apply dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900;
     @apply text-slate-900 dark:text-slate-100;
+    @apply transition-colors duration-300;
+  }
+  
+  * {
+    @apply border-slate-200 dark:border-slate-700;
   }
 }
 
@@ -43,28 +48,28 @@
   }
   
   .card {
-    @apply bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-6 transition-all duration-300 hover:shadow-2xl;
-    @apply dark:bg-slate-800/90 dark:border-slate-700/50;
+    @apply bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/50 p-6 transition-all duration-300 hover:shadow-2xl;
+    @apply dark:bg-slate-800/95 dark:border-slate-700/50;
   }
   
   .glass-card {
-    @apply bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20;
-    @apply dark:bg-slate-800/90 dark:border-slate-700/50;
+    @apply bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/50;
+    @apply dark:bg-slate-800/95 dark:border-slate-700/50;
   }
   
   .diff-added {
     @apply bg-emerald-50 text-emerald-900 border-emerald-200 rounded-lg;
-    @apply dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800;
+    @apply dark:bg-emerald-900/20 dark:text-emerald-200 dark:border-emerald-800;
   }
   
   .diff-removed {
     @apply bg-red-50 text-red-900 border-red-200 rounded-lg;
-    @apply dark:bg-red-900/20 dark:text-red-300 dark:border-red-800;
+    @apply dark:bg-red-900/20 dark:text-red-200 dark:border-red-800;
   }
   
   .diff-changed {
     @apply bg-blue-50 text-blue-900 border-blue-200 rounded-lg;
-    @apply dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800;
+    @apply dark:bg-blue-900/20 dark:text-blue-200 dark:border-blue-800;
   }
   
   .file-dropzone {
@@ -81,7 +86,7 @@
   
   /* Text utilities */
   .text-muted {
-    @apply text-slate-600 dark:text-slate-400;
+    @apply text-slate-600 dark:text-slate-300;
   }
   
   .text-muted-foreground {
@@ -94,6 +99,35 @@
   
   .border-muted {
     @apply border-slate-200 dark:border-slate-700;
+  }
+  
+  /* Dark mode specific improvements */
+  .dark .bg-white\/95 {
+    @apply bg-slate-800/95;
+  }
+  
+  .dark .bg-slate-50\/90 {
+    @apply bg-slate-700/90;
+  }
+  
+  .dark .border-slate-200\/50 {
+    @apply border-slate-600/50;
+  }
+  
+  .dark .text-slate-900 {
+    @apply text-slate-100;
+  }
+  
+  .dark .text-slate-700 {
+    @apply text-slate-200;
+  }
+  
+  .dark .text-slate-600 {
+    @apply text-slate-300;
+  }
+  
+  .dark .text-slate-500 {
+    @apply text-slate-400;
   }
 }
 
@@ -301,7 +335,7 @@
 
 /* Smooth transitions for dark mode */
 * {
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, opacity 0.3s ease;
 }
 
 /* Better hover effects */
@@ -318,11 +352,11 @@
 .backdrop-blur-glass {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.95);
 }
 
 .dark .backdrop-blur-glass {
-  background-color: rgba(30, 41, 59, 0.9);
+  background-color: rgba(30, 41, 59, 0.95);
 }
 
 /* Enhanced button styles */
@@ -336,22 +370,22 @@
 /* Statistics card gradients */
 .stat-card-success {
   @apply bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200/50;
-  @apply dark:from-emerald-900/30 dark:to-teal-900/30 dark:border-emerald-800/50;
+  @apply dark:from-emerald-900/20 dark:to-teal-900/20 dark:border-emerald-700/50;
 }
 
 .stat-card-danger {
   @apply bg-gradient-to-br from-red-50 to-pink-50 border-red-200/50;
-  @apply dark:from-red-900/30 dark:to-pink-900/30 dark:border-red-800/50;
+  @apply dark:from-red-900/20 dark:to-pink-900/20 dark:border-red-700/50;
 }
 
 .stat-card-info {
   @apply bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200/50;
-  @apply dark:from-blue-900/30 dark:to-cyan-900/30 dark:border-blue-800/50;
+  @apply dark:from-blue-900/20 dark:to-cyan-900/20 dark:border-blue-700/50;
 }
 
 .stat-card-warning {
   @apply bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200/50;
-  @apply dark:from-purple-900/30 dark:to-indigo-900/30 dark:border-purple-800/50;
+  @apply dark:from-purple-900/20 dark:to-indigo-900/20 dark:border-purple-700/50;
 }
 
 /* Responsive typography */
@@ -403,18 +437,20 @@
 
 /* Better code block styling */
 pre {
-  @apply bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700;
+  @apply bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50;
   @apply text-slate-800 dark:text-slate-200;
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 
 /* Better form styling */
-input[type="text"], input[type="email"], textarea {
-  @apply bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl;
-  @apply border border-slate-200 dark:border-slate-700;
+input[type="text"], input[type="email"], textarea, select {
+  @apply bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl;
+  @apply border border-slate-200/50 dark:border-slate-700/50;
   @apply rounded-xl px-4 py-3;
   @apply focus:ring-2 focus:ring-blue-500 focus:border-transparent;
   @apply transition-all duration-200;
+  @apply text-slate-900 dark:text-slate-100;
+  @apply placeholder-slate-400 dark:placeholder-slate-500;
 }
 
 /* Enhanced shadow utilities */
@@ -428,6 +464,55 @@ input[type="text"], input[type="email"], textarea {
 
 .shadow-glow-danger {
   box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+/* Dark mode specific fixes */
+.dark {
+  color-scheme: dark;
+}
+
+.dark .bg-white {
+  @apply bg-slate-800;
+}
+
+.dark .bg-gray-50 {
+  @apply bg-slate-700;
+}
+
+.dark .bg-gray-100 {
+  @apply bg-slate-700;
+}
+
+.dark .text-gray-900 {
+  @apply text-slate-100;
+}
+
+.dark .text-gray-800 {
+  @apply text-slate-200;
+}
+
+.dark .text-gray-700 {
+  @apply text-slate-300;
+}
+
+.dark .text-gray-600 {
+  @apply text-slate-400;
+}
+
+.dark .text-gray-500 {
+  @apply text-slate-500;
+}
+
+.dark .border-gray-200 {
+  @apply border-slate-600;
+}
+
+.dark .border-gray-300 {
+  @apply border-slate-600;
+}
+
+.dark .border-gray-700 {
+  @apply border-slate-600;
 }
 
 /* Print styles */
@@ -444,5 +529,31 @@ input[type="text"], input[type="email"], textarea {
   .card {
     border: 1px solid #ccc !important;
     box-shadow: none !important;
+  }
+}
+
+/* Improved accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Better focus indicators */
+.focus-visible:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .card {
+    border-width: 2px;
+  }
+  
+  .btn {
+    border-width: 2px;
   }
 }
