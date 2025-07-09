@@ -113,8 +113,8 @@ export class DiffExporter {
     return csv;
   }
 
-  private exportHTML(options: ExportOptions): string {
-    const template = options.template || this.getDefaultHTMLTemplate();
+  private exportHTML(exportOptions: ExportOptions): string {
+    const template = exportOptions.template || this.getDefaultHTMLTemplate();
     
     let html = template;
     
@@ -129,7 +129,7 @@ export class DiffExporter {
     html = html.replace('{{CHANGES_TABLE}}', changesTable);
     
     // Generate statistics
-    if (options.includeStats) {
+    if (exportOptions.includeStats) {
       const statsSection = this.generateStatsSection();
       html = html.replace('{{STATS_SECTION}}', statsSection);
     } else {
@@ -139,7 +139,7 @@ export class DiffExporter {
     return html;
   }
 
-  private exportPatch(options: ExportOptions): string {
+  private exportPatch(exportOptions: ExportOptions): string {
     if (this.result.unifiedDiff) {
       return this.result.unifiedDiff;
     }
@@ -278,7 +278,7 @@ export function downloadDiff(
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `diff-${timestamp}.${format}`;
   
-  const mimeTypes = {
+  const mimeTypes: Record<string, string> = {
     json: 'application/json',
     csv: 'text/csv',
     html: 'text/html',
