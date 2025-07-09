@@ -58,7 +58,9 @@ export function Header() {
                 { name: 'INI', icon: '📝' },
                 { name: 'TOML', icon: '🔧' },
                 { name: 'ENV', icon: '🌍' },
-                { name: '.config', icon: '⚙️' }
+                { name: 'HCL', icon: '🏗️' },
+                { name: 'Properties', icon: '☕' },
+                { name: 'Config', icon: '⚙️' }
               ].map(format => (
                 <span
                   key={format.name}
