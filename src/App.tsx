@@ -202,24 +202,24 @@ function App() {
     const lines = [];
     lines.push(`--- ${leftFile.file?.name || 'File A'}`);
     lines.push(`+++ ${rightFile.file?.name || 'File B'}`);
+    lines.push('');
     
-    const processNode = (node: any, path: string = '') => {
-      if (node.type === 'added') {
-        lines.push(`+${path}: ${JSON.stringify(node.value)}`);
-      } else if (node.type === 'removed') {
-        lines.push(`-${path}: ${JSON.stringify(node.value)}`);
-      } else if (node.type === 'changed') {
-        lines.push(`-${path}: ${JSON.stringify(node.left)}`);
-        lines.push(`+${path}: ${JSON.stringify(node.right)}`);
-      } else if (node.children) {
-        Object.entries(node.children).forEach(([key, child]) => {
-          processNode(child, path ? `${path}.${key}` : key);
-        });
+    // Generate unified diff from changes
+    comparisonResult.changes.forEach((change) => {
+      const path = change.path || '';
+      
+      if (change.type === 'added') {
+        lines.push(`+${path}: ${JSON.stringify(change.newValue)}`);
+      } else if (change.type === 'removed') {
+        lines.push(`-${path}: ${JSON.stringify(change.oldValue)}`);
+      } else if (change.type === 'changed') {
+        lines.push(`-${path}: ${JSON.stringify(change.oldValue)}`);
+        lines.push(`+${path}: ${JSON.stringify(change.newValue)}`);
       }
-    };
+    });
     
-    if (comparisonResult.diff) {
-      processNode(comparisonResult.diff);
+    if (lines.length === 3) {
+      lines.push('No differences found');
     }
     
     return lines.join('\n');
