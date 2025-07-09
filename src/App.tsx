@@ -122,7 +122,7 @@ function App() {
   const canCompare = leftFile.isValid && rightFile.isValid;
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -181,7 +181,7 @@ function App() {
           </div>
           
           {comparisonResult && (
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
               Found {comparisonResult.summary.total} differences
             </div>
           )}
@@ -189,11 +189,11 @@ function App() {
         
         {/* Error Display */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-8">
             <div className="flex items-center">
-              <div className="text-red-800 font-medium">Error</div>
+              <div className="text-red-800 dark:text-red-300 font-medium">Error</div>
             </div>
-            <div className="text-red-700 mt-1">{error}</div>
+            <div className="text-red-700 dark:text-red-300 mt-1">{error}</div>
           </div>
         )}
         
