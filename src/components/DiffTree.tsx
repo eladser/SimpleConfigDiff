@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { DiffChange, DiffOptions } from '@/types';
+import { useState } from 'react';
+import { DiffChange } from '@/types';
 import { ChevronDown, ChevronRight, Plus, Minus, RefreshCw, Folder, FolderOpen } from 'lucide-react';
 import { formatValue } from '@/utils/generateDiff';
 
 interface DiffTreeProps {
   changes: DiffChange[];
   viewMode: 'tree' | 'flat';
-  options: DiffOptions;
 }
 
 interface TreeNode {
@@ -17,7 +16,7 @@ interface TreeNode {
   isFolder: boolean;
 }
 
-export function DiffTree({ changes, viewMode, options }: DiffTreeProps) {
+export function DiffTree({ changes, viewMode }: DiffTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   
   const toggleNode = (path: string) => {
