@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
-import { downloadDiff } from '@/utils/exportDiff';
+import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
 import { RefreshCw, Download, BarChart3, Layers, SplitSquareHorizontal, ChevronDown } from 'lucide-react';
 
 function App() {
@@ -143,14 +143,25 @@ function App() {
     setError(null);
   }, []);
 
-  const handleExport = useCallback((format: 'json' | 'csv' | 'html' | 'patch') => {
+  const handleExport = useCallback(async (format: 'json' | 'csv' | 'html' | 'patch' | 'pdf') => {
     if (!comparisonResult) return;
     
-    downloadDiff(comparisonResult, options, format, {
+    const exportOptions = {
       includeMetadata: true,
       includeStats: true,
       includeContext: true
-    });
+    };
+    
+    if (format === 'pdf') {
+      try {
+        await downloadPDFDiff(comparisonResult, options, exportOptions);
+      } catch (error) {
+        console.error('PDF export failed:', error);
+        setError('PDF export failed. Please try again.');
+      }
+    } else {
+      downloadDiff(comparisonResult, options, format, exportOptions);
+    }
     
     setShowExportMenu(false);
   }, [comparisonResult, options]);
@@ -258,6 +269,12 @@ function App() {
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         Patch File
+                      </button>
+                      <button
+                        onClick={() => handleExport('pdf')}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-600"
+                      >
+                        📄 PDF Report
                       </button>
                     </div>
                   </div>
