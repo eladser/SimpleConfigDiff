@@ -195,7 +195,7 @@ export class DiffSeverityAnalyzer {
   static analyzeSeverity(change: any): 'critical' | 'major' | 'minor' | 'cosmetic' {
     const path = change.path.toLowerCase();
     
-    // Critical changes
+    // Critical changes - these can break functionality or expose security issues
     if (this.isCriticalPath(path)) {
       return 'critical';
     }
@@ -225,6 +225,7 @@ export class DiffSeverityAnalyzer {
 
   private static isCriticalPath(path: string): boolean {
     const criticalPatterns = [
+      // Security credentials
       /password/i,
       /secret/i,
       /token/i,
@@ -235,10 +236,62 @@ export class DiffSeverityAnalyzer {
       /ssl/i,
       /tls/i,
       /cert/i,
-      /database\..*\.host/i,
-      /database\..*\.port/i,
-      /server\..*\.port/i,
-      /api\..*\.endpoint/i
+      
+      // Network configuration - CRITICAL for connectivity
+      /\.port$/i,              // Any path ending with .port
+      /^port$/i,               // Standalone port
+      /host$/i,                // Any path ending with host
+      /^host$/i,               // Standalone host
+      /url$/i,                 // Any path ending with url
+      /^url$/i,                // Standalone url
+      /endpoint$/i,            // Any path ending with endpoint
+      /^endpoint$/i,           // Standalone endpoint
+      
+      // Database connections
+      /database.*host/i,
+      /database.*port/i,
+      /db.*host/i,
+      /db.*port/i,
+      
+      // Server configuration
+      /server.*host/i,
+      /server.*port/i,
+      /listen.*port/i,
+      /bind.*port/i,
+      
+      // API configuration
+      /api.*endpoint/i,
+      /api.*host/i,
+      /api.*port/i,
+      /api.*url/i,
+      
+      // Service discovery
+      /service.*host/i,
+      /service.*port/i,
+      /registry.*host/i,
+      /registry.*port/i,
+      
+      // Load balancer and proxy
+      /proxy.*host/i,
+      /proxy.*port/i,
+      /upstream.*host/i,
+      /upstream.*port/i,
+      
+      // Message queues and brokers
+      /broker.*host/i,
+      /broker.*port/i,
+      /queue.*host/i,
+      /queue.*port/i,
+      /kafka.*host/i,
+      /kafka.*port/i,
+      /redis.*host/i,
+      /redis.*port/i,
+      
+      // Container and orchestration
+      /container.*port/i,
+      /docker.*port/i,
+      /kubernetes.*port/i,
+      /k8s.*port/i
     ];
     
     return criticalPatterns.some(pattern => pattern.test(path));
@@ -254,7 +307,18 @@ export class DiffSeverityAnalyzer {
       /access/i,
       /encryption/i,
       /hash/i,
-      /salt/i
+      /salt/i,
+      /session/i,
+      /cookie/i,
+      /jwt/i,
+      /oauth/i,
+      /saml/i,
+      /ldap/i,
+      /firewall/i,
+      /whitelist/i,
+      /blacklist/i,
+      /allowlist/i,
+      /denylist/i
     ];
     
     return securityPatterns.some(pattern => pattern.test(path));
@@ -271,7 +335,17 @@ export class DiffSeverityAnalyzer {
       /cpu/i,
       /limit/i,
       /throttle/i,
-      /rate/i
+      /rate/i,
+      /buffer/i,
+      /batch/i,
+      /worker/i,
+      /queue.*size/i,
+      /max.*connections/i,
+      /min.*connections/i,
+      /keepalive/i,
+      /retry/i,
+      /backoff/i,
+      /circuit.*breaker/i
     ];
     
     return performancePatterns.some(pattern => pattern.test(path));
