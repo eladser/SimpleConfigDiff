@@ -1,4 +1,3 @@
-import React from 'react';
 import { RefreshCw, Github, Star } from 'lucide-react';
 
 export function Header() {
