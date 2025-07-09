@@ -20,7 +20,6 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const [filterType, setFilterType] = useState<'all' | 'added' | 'removed' | 'changed'>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [showUnchanged, setShowUnchanged] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   // Memoized filter counts
   const filterCounts = useMemo(() => ({
