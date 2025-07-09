@@ -22,11 +22,19 @@ export default defineConfig(({ command, mode }) => {
             vendor: ['react', 'react-dom'],
             parsers: ['js-yaml', 'fast-xml-parser', 'ini', '@iarna/toml'],
           },
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash].[ext]'
         },
       },
+      assetsDir: 'assets',
     },
     server: {
       port: 3000,
     },
+    // Ensure proper MIME types for ES modules
+    esbuild: {
+      target: 'es2020'
+    }
   }
 })
