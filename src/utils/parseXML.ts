@@ -10,10 +10,8 @@ export function parseXML(content: string): ParsedConfig {
       ignoreDeclaration: true,
       parseAttributeValue: true,
       parseTagValue: true,
-      arrayMode: false,
       trimValues: true,
       cdataTagName: '__cdata',
-      cdataPositionChar: '\c',
       parseTrueNumberOnly: false,
       isArray: (name: string) => {
         // Handle common XML arrays
