@@ -8,11 +8,20 @@ import { parseENV } from './parseENV';
 import { parseHCL } from './parseHCL';
 import { parseProperties } from './parseProperties';
 import { parseCSV } from './parseCSV';
+import { parseDockerCompose } from './parseDockerCompose';
 
 export function detectFormat(filename: string, content: string): ConfigFormat {
   const ext = filename.split('.').pop()?.toLowerCase();
+  const name = filename.toLowerCase();
   
-  // Check file extension first
+  // Check for Docker Compose files first
+  if (name.includes('docker-compose') || name.includes('compose') || 
+      name === 'docker-compose.yml' || name === 'docker-compose.yaml' ||
+      name === 'compose.yml' || name === 'compose.yaml') {
+    return 'yaml'; // Docker Compose files are YAML-based
+  }
+  
+  // Check file extension
   switch (ext) {
     case 'json':
       return 'json';
@@ -121,7 +130,32 @@ function detectFormatByContent(content: string): ConfigFormat {
   return 'config';
 }
 
-export function parseConfig(content: string, format: ConfigFormat): ParsedConfig {
+function isDockerComposeFile(filename: string, content: string): boolean {
+  const name = filename.toLowerCase();
+  
+  // Check filename patterns
+  if (name.includes('docker-compose') || name.includes('compose') || 
+      name === 'docker-compose.yml' || name === 'docker-compose.yaml' ||
+      name === 'compose.yml' || name === 'compose.yaml') {
+    return true;
+  }
+  
+  // Check content for Docker Compose indicators
+  const trimmed = content.trim();
+  if (trimmed.includes('version:') && 
+      (trimmed.includes('services:') || trimmed.includes('networks:') || trimmed.includes('volumes:'))) {
+    return true;
+  }
+  
+  return false;
+}
+
+export function parseConfig(content: string, format: ConfigFormat, filename: string = ''): ParsedConfig {
+  // Special handling for Docker Compose files
+  if (format === 'yaml' && isDockerComposeFile(filename, content)) {
+    return parseDockerCompose(content);
+  }
+  
   switch (format) {
     case 'json':
       return parseJSON(content);
@@ -230,4 +264,30 @@ export function getSupportedExtensions(): string[] {
     '.csv',
     '.config', '.conf'
   ];
+}
+
+export function isSpecializedFormat(filename: string, content: string): { 
+  isSpecialized: boolean; 
+  type?: 'docker-compose' | 'kubernetes'; 
+  description?: string; 
+} {
+  // Check for Docker Compose
+  if (isDockerComposeFile(filename, content)) {
+    return {
+      isSpecialized: true,
+      type: 'docker-compose',
+      description: 'Docker Compose file with semantic understanding'
+    };
+  }
+  
+  // Check for Kubernetes manifests
+  if (content.includes('apiVersion:') && content.includes('kind:')) {
+    return {
+      isSpecialized: true,
+      type: 'kubernetes',
+      description: 'Kubernetes manifest with semantic understanding'
+    };
+  }
+  
+  return { isSpecialized: false };
 }
