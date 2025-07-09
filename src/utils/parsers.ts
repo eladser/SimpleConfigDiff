@@ -38,7 +38,7 @@ export function detectFormat(filename: string, content: string): ConfigFormat {
   }
   
   // INI detection (sections with [header])
-  if (/^\\[.*\\]$/m.test(trimmed)) {
+  if (/^\[.*\]$/m.test(trimmed)) {
     return 'ini';
   }
   
@@ -48,7 +48,7 @@ export function detectFormat(filename: string, content: string): ConfigFormat {
   }
   
   // TOML detection (key = value pattern)
-  if (/^[a-zA-Z_][a-zA-Z0-9_]*\\s*=/.test(trimmed)) {
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*\s*=/.test(trimmed)) {
     return 'toml';
   }
   
