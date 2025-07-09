@@ -297,11 +297,11 @@ export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySid
         <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
           <div className="flex items-center gap-4">
             <span>Similarity: {result.stats.similarities.toFixed(1)}%</span>
-            <span>Characters: {result.stats.totalCharacters.toLocaleString()}</span>
+            <span>Characters: {(result.stats.totalCharacters || 0).toLocaleString()}</span>
           </div>
           <div className="flex items-center gap-4">
             <span>Time: {result.metadata.comparisonTime.toFixed(2)}ms</span>
-            <span>Algorithm: {result.metadata.algorithm}</span>
+            <span>Algorithm: {result.metadata.algorithm || 'default'}</span>
           </div>
         </div>
       </div>
