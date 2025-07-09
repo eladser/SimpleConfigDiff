@@ -2,27 +2,31 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig({
-  plugins: [react()],
-  base: '/SimpleConfigDiff/',
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
+export default defineConfig(({ command, mode }) => {
+  const isDev = command === 'serve'
+  
+  return {
+    plugins: [react()],
+    base: isDev ? '/' : '/SimpleConfigDiff/',
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
     },
-  },
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          parsers: ['js-yaml', 'fast-xml-parser', 'ini', '@iarna/toml'],
+    build: {
+      outDir: 'dist',
+      sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            parsers: ['js-yaml', 'fast-xml-parser', 'ini', '@iarna/toml'],
+          },
         },
       },
     },
-  },
-  server: {
-    port: 3000,
-  },
+    server: {
+      port: 3000,
+    },
+  }
 })
