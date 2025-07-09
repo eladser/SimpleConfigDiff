@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { FileUpload } from '@/components/FileUpload';
+import { DirectoryUpload } from '@/components/DirectoryUpload';
+import { DirectoryComparison } from '@/components/DirectoryComparison';
 import { DiffViewer } from '@/components/DiffViewer';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
@@ -8,9 +10,23 @@ import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
-import { RefreshCw, Download, BarChart3, Layers, SplitSquareHorizontal, ChevronDown } from 'lucide-react';
+import { RefreshCw, Download, BarChart3, Layers, SplitSquareHorizontal, ChevronDown, Files, Folder } from 'lucide-react';
+
+interface DirectoryFile {
+  path: string;
+  file: File;
+  relativePath: string;
+  isSupported: boolean;
+  format?: string;
+  size: number;
+}
+
+type ComparisonMode = 'files' | 'directories';
 
 function App() {
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('files');
+  
+  // File comparison state
   const [leftFile, setLeftFile] = useState<FileUploadState>({
     file: null,
     content: '',
@@ -24,6 +40,14 @@ function App() {
     format: null,
     isValid: false
   });
+
+  // Directory comparison state
+  const [leftDirectory, setLeftDirectory] = useState<DirectoryFile[]>([]);
+  const [rightDirectory, setRightDirectory] = useState<DirectoryFile[]>([]);
+  const [selectedDirectoryFiles, setSelectedDirectoryFiles] = useState<{
+    left?: DirectoryFile;
+    right?: DirectoryFile;
+  }>({});
   
   const [options, setOptions] = useState<DiffOptions>({
     ignoreKeys: [],
@@ -55,6 +79,15 @@ function App() {
   const [isComparing, setIsComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const readFileContent = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  }, []);
   
   const handleFileUpload = useCallback((file: File, side: 'left' | 'right') => {
     const reader = new FileReader();
@@ -81,19 +114,41 @@ function App() {
     };
     reader.readAsText(file);
   }, []);
-  
-  const handleCompare = useCallback(async () => {
-    if (!leftFile.isValid || !rightFile.isValid || !leftFile.file || !rightFile.file) {
-      setError('Please upload two valid configuration files');
-      return;
+
+  const handleDirectoryUpload = useCallback((files: DirectoryFile[], side: 'left' | 'right') => {
+    if (side === 'left') {
+      setLeftDirectory(files);
+    } else {
+      setRightDirectory(files);
     }
+  }, []);
+
+  const handleDirectoryFileSelect = useCallback((leftFile?: DirectoryFile, rightFile?: DirectoryFile) => {
+    setSelectedDirectoryFiles({ left: leftFile, right: rightFile });
+    
+    // Auto-compare the selected files
+    if (leftFile || rightFile) {
+      compareDirectoryFiles(leftFile, rightFile);
+    }
+  }, []);
+
+  const compareDirectoryFiles = useCallback(async (leftFile?: DirectoryFile, rightFile?: DirectoryFile) => {
+    if (!leftFile && !rightFile) return;
     
     setIsComparing(true);
     setError(null);
     
     try {
-      const leftParsed = parseConfig(leftFile.content, leftFile.format!);
-      const rightParsed = parseConfig(rightFile.content, rightFile.format!);
+      // Read file contents
+      const leftContent = leftFile ? await readFileContent(leftFile.file) : '';
+      const rightContent = rightFile ? await readFileContent(rightFile.file) : '';
+      
+      // Parse contents
+      const leftFormat = leftFile ? detectFormat(leftFile.file.name, leftContent) : null;
+      const rightFormat = rightFile ? detectFormat(rightFile.file.name, rightContent) : null;
+      
+      const leftParsed = leftContent && leftFormat ? parseConfig(leftContent, leftFormat) : { data: {}, format: leftFormat };
+      const rightParsed = rightContent && rightFormat ? parseConfig(rightContent, rightFormat) : { data: {}, format: rightFormat };
       
       if (leftParsed.error) {
         throw new Error(`Error parsing left file: ${leftParsed.error}`);
@@ -104,16 +159,16 @@ function App() {
       }
       
       const leftConfigFile = {
-        name: leftFile.file.name,
-        content: leftFile.content,
-        format: leftFile.format!,
+        name: leftFile?.file.name || 'Empty',
+        content: leftContent,
+        format: leftFormat || 'text',
         parsedContent: leftParsed.data
       };
       
       const rightConfigFile = {
-        name: rightFile.file.name,
-        content: rightFile.content,
-        format: rightFile.format!,
+        name: rightFile?.file.name || 'Empty',
+        content: rightContent,
+        format: rightFormat || 'text',
         parsedContent: rightParsed.data
       };
       
@@ -124,7 +179,62 @@ function App() {
     } finally {
       setIsComparing(false);
     }
-  }, [leftFile, rightFile, options]);
+  }, [options, readFileContent]);
+  
+  const handleCompare = useCallback(async () => {
+    if (comparisonMode === 'files') {
+      if (!leftFile.isValid || !rightFile.isValid || !leftFile.file || !rightFile.file) {
+        setError('Please upload two valid configuration files');
+        return;
+      }
+      
+      setIsComparing(true);
+      setError(null);
+      
+      try {
+        const leftParsed = parseConfig(leftFile.content, leftFile.format!);
+        const rightParsed = parseConfig(rightFile.content, rightFile.format!);
+        
+        if (leftParsed.error) {
+          throw new Error(`Error parsing left file: ${leftParsed.error}`);
+        }
+        
+        if (rightParsed.error) {
+          throw new Error(`Error parsing right file: ${rightParsed.error}`);
+        }
+        
+        const leftConfigFile = {
+          name: leftFile.file.name,
+          content: leftFile.content,
+          format: leftFile.format!,
+          parsedContent: leftParsed.data
+        };
+        
+        const rightConfigFile = {
+          name: rightFile.file.name,
+          content: rightFile.content,
+          format: rightFile.format!,
+          parsedContent: rightParsed.data
+        };
+        
+        const result = generateDiff(leftConfigFile, rightConfigFile, options);
+        setComparisonResult(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred during comparison');
+      } finally {
+        setIsComparing(false);
+      }
+    } else {
+      // Directory comparison mode
+      if (leftDirectory.length === 0 && rightDirectory.length === 0) {
+        setError('Please upload directories to compare');
+        return;
+      }
+      
+      // For directory mode, we'll show the directory comparison view
+      setComparisonResult(null);
+    }
+  }, [comparisonMode, leftFile, rightFile, leftDirectory, rightDirectory, options]);
   
   const handleReset = useCallback(() => {
     setLeftFile({
@@ -139,6 +249,9 @@ function App() {
       format: null,
       isValid: false
     });
+    setLeftDirectory([]);
+    setRightDirectory([]);
+    setSelectedDirectoryFiles({});
     setComparisonResult(null);
     setError(null);
   }, []);
@@ -169,30 +282,99 @@ function App() {
   const handleDiffModeChange = useCallback((mode: 'tree' | 'side-by-side' | 'unified') => {
     setOptions(prev => ({ ...prev, diffMode: mode }));
   }, []);
+
+  const handleModeChange = useCallback((mode: ComparisonMode) => {
+    setComparisonMode(mode);
+    setComparisonResult(null);
+    setError(null);
+  }, []);
   
-  const canCompare = leftFile.isValid && rightFile.isValid;
+  const canCompare = comparisonMode === 'files' 
+    ? leftFile.isValid && rightFile.isValid 
+    : leftDirectory.length > 0 || rightDirectory.length > 0;
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* File Upload Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <FileUpload
-            title="Configuration File A"
-            fileState={leftFile}
-            onFileUpload={(file) => handleFileUpload(file, 'left')}
-            placeholder="Drop your first config file here or click to browse"
-          />
-          
-          <FileUpload
-            title="Configuration File B"
-            fileState={rightFile}
-            onFileUpload={(file) => handleFileUpload(file, 'right')}
-            placeholder="Drop your second config file here or click to browse"
-          />
+        {/* Mode Toggle */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => handleModeChange('files')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                comparisonMode === 'files' 
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Files className="w-4 h-4" />
+              Compare Files
+            </button>
+            <button
+              onClick={() => handleModeChange('directories')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                comparisonMode === 'directories' 
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Folder className="w-4 h-4" />
+              Compare Directories
+            </button>
+          </div>
         </div>
+
+        {/* Upload Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {comparisonMode === 'files' ? (
+            <>
+              <FileUpload
+                title="Configuration File A"
+                fileState={leftFile}
+                onFileUpload={(file) => handleFileUpload(file, 'left')}
+                placeholder="Drop your first config file here or click to browse"
+              />
+              
+              <FileUpload
+                title="Configuration File B"
+                fileState={rightFile}
+                onFileUpload={(file) => handleFileUpload(file, 'right')}
+                placeholder="Drop your second config file here or click to browse"
+              />
+            </>
+          ) : (
+            <>
+              <DirectoryUpload
+                title="Directory A"
+                onDirectoryUpload={(files) => handleDirectoryUpload(files, 'left')}
+              />
+              
+              <DirectoryUpload
+                title="Directory B"
+                onDirectoryUpload={(files) => handleDirectoryUpload(files, 'right')}
+              />
+            </>
+          )}
+        </div>
+
+        {/* Directory Comparison View */}
+        {comparisonMode === 'directories' && (leftDirectory.length > 0 || rightDirectory.length > 0) && (
+          <div className="mb-8">
+            <DirectoryComparison
+              leftFiles={leftDirectory}
+              rightFiles={rightDirectory}
+              onFileSelect={handleDirectoryFileSelect}
+              selectedComparison={selectedDirectoryFiles.left || selectedDirectoryFiles.right ? {
+                leftFile: selectedDirectoryFiles.left,
+                rightFile: selectedDirectoryFiles.right,
+                relativePath: selectedDirectoryFiles.left?.relativePath || selectedDirectoryFiles.right?.relativePath || '',
+                status: 'unchanged'
+              } : undefined}
+            />
+          </div>
+        )}
         
         {/* Advanced Options Panel */}
         <div className="mb-8">
@@ -220,7 +402,7 @@ function App() {
               ) : (
                 <>
                   <RefreshCw className="w-5 h-5" />
-                  Compare Files
+                  {comparisonMode === 'files' ? 'Compare Files' : 'Compare Directories'}
                 </>
               )}
             </button>
