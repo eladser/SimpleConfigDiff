@@ -201,10 +201,10 @@ export class DirectoryProcessor {
     }
     
     return Array.from(patterns.entries())
-      .map(([patternKey, matchedFiles]) => ({
-        pattern: patternKey,
+      .map(([pattern, matchedFiles]) => ({
+        pattern,
         files: matchedFiles,
-        confidence: this.calculatePatternConfidence(patternKey, matchedFiles)
+        confidence: this.calculatePatternConfidence(pattern, matchedFiles)
       }))
       .filter(group => group.files.length > 1)
       .sort((a, b) => b.confidence - a.confidence);
@@ -223,7 +223,7 @@ export class DirectoryProcessor {
     return extractedPattern;
   }
 
-  private calculatePatternConfidence(patternKey: string, files: BatchFile[]): number {
+  private calculatePatternConfidence(pattern: string, files: BatchFile[]): number {
     if (files.length < 2) return 0;
     
     let confidence = 0;
