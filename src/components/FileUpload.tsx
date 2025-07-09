@@ -15,7 +15,10 @@ import {
   Wrench,
   Loader2,
   Eye,
-  EyeOff
+  EyeOff,
+  Layers,
+  Table,
+  Paintbrush
 } from 'lucide-react';
 
 interface FileUploadProps {
@@ -26,7 +29,7 @@ interface FileUploadProps {
   placeholder: string;
 }
 
-const formatIcons = {
+const formatIcons: Record<ConfigFormat, { icon: React.ComponentType<{ className?: string }>, color: string }> = {
   json: { icon: Code, color: 'from-yellow-400 to-orange-400' },
   yaml: { icon: FileText, color: 'from-emerald-400 to-blue-400' },
   xml: { icon: Code, color: 'from-red-400 to-pink-400' },
@@ -35,7 +38,11 @@ const formatIcons = {
   env: { icon: Globe, color: 'from-emerald-400 to-teal-400' },
   properties: { icon: Coffee, color: 'from-amber-400 to-orange-400' },
   config: { icon: Database, color: 'from-slate-400 to-blue-400' },
-  conf: { icon: Database, color: 'from-slate-400 to-blue-400' }
+  hcl: { icon: Layers, color: 'from-purple-400 to-violet-400' },
+  csv: { icon: Table, color: 'from-green-400 to-emerald-400' },
+  jinja2: { icon: Paintbrush, color: 'from-pink-400 to-rose-400' },
+  handlebars: { icon: Paintbrush, color: 'from-orange-400 to-amber-400' },
+  mustache: { icon: Paintbrush, color: 'from-yellow-400 to-orange-400' }
 };
 
 export function FileUpload({ title, fileState, onFileUpload, onTextPaste, placeholder }: FileUploadProps) {
@@ -204,7 +211,7 @@ export function FileUpload({ title, fileState, onFileUpload, onTextPaste, placeh
               {placeholder}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              Supports JSON, YAML, XML, INI, TOML, ENV, Properties, and Config files
+              Supports JSON, YAML, XML, INI, TOML, ENV, Properties, Config, HCL, CSV, and template files
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -264,7 +271,7 @@ export function FileUpload({ title, fileState, onFileUpload, onTextPaste, placeh
           ref={fileInputRef}
           type="file"
           onChange={handleFileSelect}
-          accept=".json,.yaml,.yml,.xml,.ini,.toml,.env,.properties,.conf,.config"
+          accept=".json,.yaml,.yml,.xml,.ini,.toml,.env,.properties,.conf,.config,.hcl,.csv,.j2,.jinja2,.hbs,.handlebars,.mustache"
           className="hidden"
         />
       </div>
@@ -293,7 +300,12 @@ export function FileUpload({ title, fileState, onFileUpload, onTextPaste, placeh
                   <option value="toml">TOML</option>
                   <option value="env">ENV</option>
                   <option value="properties">Properties</option>
-                  <option value="conf">Config</option>
+                  <option value="config">Config</option>
+                  <option value="hcl">HCL</option>
+                  <option value="csv">CSV</option>
+                  <option value="jinja2">Jinja2</option>
+                  <option value="handlebars">Handlebars</option>
+                  <option value="mustache">Mustache</option>
                 </select>
               </div>
             </div>
