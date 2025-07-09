@@ -8,7 +8,9 @@ import {
   Filter, 
   X, 
   Eye, 
-  EyeOff
+  EyeOff,
+  GitBranch,
+  FileText
 } from 'lucide-react';
 
 interface SideBySideDiffProps {
@@ -19,7 +21,10 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'added' | 'removed' | 'changed'>('all');
   const [showFilters, setShowFilters] = useState(false);
-  const [showUnchanged, setShowUnchanged] = useState(false);
+  const [viewMode, setViewMode] = useState<'semantic' | 'raw'>('semantic');
+
+  // Check if files have different formats
+  const isDifferentFormats = result.leftFile.format !== result.rightFile.format;
 
   // Memoized filter counts
   const filterCounts = useMemo(() => ({
@@ -29,60 +34,98 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
     changed: result.changes.filter(c => c.type === 'changed').length
   }), [result.changes]);
 
-  // Memoized line-by-line diff
-  const lineDiff = useMemo(() => {
-    const leftLines = result.leftFile.content.split('\n');
-    const rightLines = result.rightFile.content.split('\n');
-    const maxLines = Math.max(leftLines.length, rightLines.length);
-    
-    const lines = [];
-    for (let i = 0; i < maxLines; i++) {
-      const leftLine = leftLines[i] || '';
-      const rightLine = rightLines[i] || '';
+  // Memoized semantic diff for different formats
+  const semanticDiff = useMemo(() => {
+    if (!isDifferentFormats && viewMode === 'raw') {
+      // Use line-by-line diff for same formats in raw mode
+      const leftLines = result.leftFile.content.split('\n');
+      const rightLines = result.rightFile.content.split('\n');
+      const maxLines = Math.max(leftLines.length, rightLines.length);
       
-      let type: 'unchanged' | 'added' | 'removed' | 'changed' = 'unchanged';
-      if (leftLine !== rightLine) {
-        if (!leftLine && rightLine) type = 'added';
-        else if (leftLine && !rightLine) type = 'removed';
-        else type = 'changed';
+      const lines = [];
+      for (let i = 0; i < maxLines; i++) {
+        const leftLine = leftLines[i] || '';
+        const rightLine = rightLines[i] || '';
+        
+        let type: 'unchanged' | 'added' | 'removed' | 'changed' = 'unchanged';
+        if (leftLine !== rightLine) {
+          if (!leftLine && rightLine) type = 'added';
+          else if (leftLine && !rightLine) type = 'removed';
+          else type = 'changed';
+        }
+        
+        lines.push({
+          key: `line-${i}`,
+          path: `Line ${i + 1}`,
+          leftContent: leftLine,
+          rightContent: rightLine,
+          type,
+          isPath: false
+        });
       }
       
-      lines.push({
-        lineNumber: i + 1,
-        leftContent: leftLine,
-        rightContent: rightLine,
-        type
-      });
+      return lines;
     }
-    
-    return lines;
-  }, [result.leftFile.content, result.rightFile.content]);
 
-  // Memoized visible lines (for performance)
-  const visibleLines = useMemo(() => {
-    let lines = lineDiff;
+    // Use semantic diff based on changes
+    const semanticLines = [];
     
-    // Filter by search term
+    // Group changes by path for better organization
+    const changesByPath = new Map<string, typeof result.changes[0]>();
+    result.changes.forEach(change => {
+      changesByPath.set(change.path, change);
+    });
+
+    // Create semantic comparison entries
+    changesByPath.forEach((change, path) => {
+      semanticLines.push({
+        key: path,
+        path: path,
+        leftContent: change.type === 'added' ? '' : formatValue(change.oldValue),
+        rightContent: change.type === 'removed' ? '' : formatValue(change.newValue),
+        type: change.type,
+        isPath: true,
+        description: change.description
+      });
+    });
+
+    // Sort by path for consistent ordering
+    semanticLines.sort((a, b) => a.path.localeCompare(b.path));
+
+    return semanticLines;
+  }, [result.leftFile.content, result.rightFile.content, result.changes, isDifferentFormats, viewMode]);
+
+  // Helper function to format values for display
+  const formatValue = (value: any): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') return JSON.stringify(value, null, 2);
+    return String(value);
+  };
+
+  // Memoized filtered diff
+  const filteredDiff = useMemo(() => {
+    let filtered = semanticDiff;
+
+    // Apply type filter
+    if (filterType !== 'all') {
+      filtered = filtered.filter(item => item.type === filterType);
+    }
+
+    // Apply search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      lines = lines.filter(line => 
-        line.leftContent.toLowerCase().includes(searchLower) ||
-        line.rightContent.toLowerCase().includes(searchLower)
-      );
+      filtered = filtered.filter(item => {
+        const pathMatch = item.path.toLowerCase().includes(searchLower);
+        const leftMatch = item.leftContent.toLowerCase().includes(searchLower);
+        const rightMatch = item.rightContent.toLowerCase().includes(searchLower);
+        
+        return pathMatch || leftMatch || rightMatch;
+      });
     }
-    
-    // Filter by type
-    if (filterType !== 'all') {
-      lines = lines.filter(line => line.type === filterType);
-    }
-    
-    // Filter unchanged lines
-    if (!showUnchanged) {
-      lines = lines.filter(line => line.type !== 'unchanged');
-    }
-    
-    return lines;
-  }, [lineDiff, searchTerm, filterType, showUnchanged]);
+
+    return filtered;
+  }, [semanticDiff, filterType, searchTerm]);
 
   const highlightSearchTerm = useCallback((text: string) => {
     if (!searchTerm) return text;
@@ -97,7 +140,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
     );
   }, [searchTerm]);
 
-  const getLineTypeClass = (type: string) => {
+  const getItemTypeClass = (type: string) => {
     switch (type) {
       case 'added':
         return 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 dark:border-emerald-400';
@@ -110,7 +153,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
     }
   };
 
-  const getLineIcon = (type: string) => {
+  const getItemIcon = (type: string) => {
     switch (type) {
       case 'added':
         return <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
@@ -126,10 +169,9 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const clearFilters = () => {
     setSearchTerm('');
     setFilterType('all');
-    setShowUnchanged(false);
   };
 
-  const hasActiveFilters = searchTerm || filterType !== 'all' || showUnchanged;
+  const hasActiveFilters = searchTerm || filterType !== 'all';
 
   return (
     <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50">
@@ -139,7 +181,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
             Side-by-Side Comparison
           </h3>
           <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-            <span>Showing {visibleLines.length} lines</span>
+            <span>Showing {filteredDiff.length} {viewMode === 'semantic' ? 'changes' : 'lines'}</span>
             {hasActiveFilters && (
               <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md">
                 Filtered
@@ -148,6 +190,46 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
           </div>
         </div>
 
+        {/* Format Warning & View Mode Toggle */}
+        {isDifferentFormats && (
+          <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <GitBranch className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <span className="font-medium text-amber-700 dark:text-amber-300">
+                Different File Formats Detected
+              </span>
+            </div>
+            <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
+              Comparing {result.leftFile.format?.toUpperCase()} vs {result.rightFile.format?.toUpperCase()}. 
+              Semantic comparison shows meaningful differences in configuration values.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode('semantic')}
+                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium transition-all ${
+                  viewMode === 'semantic'
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                <GitBranch className="w-4 h-4" />
+                Semantic View
+              </button>
+              <button
+                onClick={() => setViewMode('raw')}
+                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium transition-all ${
+                  viewMode === 'raw'
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                Raw View
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Search and Filter Controls */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
           <div className="flex-1">
@@ -155,7 +237,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="Search in file contents..."
+                placeholder={`Search in ${viewMode === 'semantic' ? 'configuration keys and values' : 'file contents'}...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -164,18 +246,6 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
           </div>
           
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowUnchanged(!showUnchanged)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                showUnchanged
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-              }`}
-            >
-              {showUnchanged ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {showUnchanged ? 'Hide' : 'Show'} Unchanged
-            </button>
-
             <div className="relative">
               <button
                 onClick={() => setShowFilters(!showFilters)}
@@ -201,7 +271,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
                       Filter by type:
                     </div>
                     {[
-                      { value: 'all', label: 'All Lines', count: filterCounts.all },
+                      { value: 'all', label: 'All Changes', count: filterCounts.all },
                       { value: 'added', label: 'Added', count: filterCounts.added },
                       { value: 'removed', label: 'Removed', count: filterCounts.removed },
                       { value: 'changed', label: 'Changed', count: filterCounts.changed }
@@ -260,7 +330,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
 
         {/* Diff Content */}
         <div className="border border-slate-200/50 dark:border-slate-700/50 rounded-xl overflow-hidden">
-          {visibleLines.length === 0 ? (
+          {filteredDiff.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search className="w-8 h-8 text-slate-400" />
@@ -282,33 +352,51 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
             </div>
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
-              {visibleLines.map((line, index) => (
+              {filteredDiff.map((item, index) => (
                 <div
-                  key={index}
-                  className={`grid grid-cols-12 gap-0 transition-colors ${getLineTypeClass(line.type)}`}
+                  key={item.key}
+                  className={`transition-colors ${getItemTypeClass(item.type)}`}
                 >
-                  {/* Line numbers */}
-                  <div className="col-span-1 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 font-mono bg-slate-50 dark:bg-slate-900/50 border-r border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                    {line.lineNumber}
-                  </div>
+                  {/* Path/Key header for semantic view */}
+                  {viewMode === 'semantic' && (
+                    <div className="px-4 py-2 bg-slate-100 dark:bg-slate-900/50 border-b border-slate-200/50 dark:border-slate-700/50">
+                      <div className="flex items-center gap-2">
+                        {getItemIcon(item.type)}
+                        <span className="font-mono text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {highlightSearchTerm(item.path)}
+                        </span>
+                        {item.description && (
+                          <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                            {item.description}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   
-                  {/* Change indicator */}
-                  <div className="col-span-1 px-2 py-2 flex items-center justify-center">
-                    {getLineIcon(line.type)}
-                  </div>
-                  
-                  {/* Left content */}
-                  <div className="col-span-5 px-4 py-2 font-mono text-sm text-slate-800 dark:text-slate-200 overflow-x-auto">
-                    <pre className="whitespace-pre-wrap">
-                      {highlightSearchTerm(line.leftContent)}
-                    </pre>
-                  </div>
-                  
-                  {/* Right content */}
-                  <div className="col-span-5 px-4 py-2 font-mono text-sm text-slate-800 dark:text-slate-200 overflow-x-auto border-l border-slate-200 dark:border-slate-700">
-                    <pre className="whitespace-pre-wrap">
-                      {highlightSearchTerm(line.rightContent)}
-                    </pre>
+                  {/* Content comparison */}
+                  <div className="grid grid-cols-2 gap-0">
+                    {/* Left content */}
+                    <div className="px-4 py-3 font-mono text-sm text-slate-800 dark:text-slate-200 overflow-x-auto">
+                      <pre className="whitespace-pre-wrap">
+                        {item.leftContent ? highlightSearchTerm(item.leftContent) : (
+                          <span className="text-slate-400 dark:text-slate-500 italic">
+                            {item.type === 'added' ? '(not present)' : '(empty)'}
+                          </span>
+                        )}
+                      </pre>
+                    </div>
+                    
+                    {/* Right content */}
+                    <div className="px-4 py-3 font-mono text-sm text-slate-800 dark:text-slate-200 overflow-x-auto border-l border-slate-200 dark:border-slate-700">
+                      <pre className="whitespace-pre-wrap">
+                        {item.rightContent ? highlightSearchTerm(item.rightContent) : (
+                          <span className="text-slate-400 dark:text-slate-500 italic">
+                            {item.type === 'removed' ? '(not present)' : '(empty)'}
+                          </span>
+                        )}
+                      </pre>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -320,17 +408,17 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
         <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
           <div className="flex items-center justify-between text-sm">
             <span className="text-slate-600 dark:text-slate-400">
-              Total lines compared: {lineDiff.length}
+              {viewMode === 'semantic' ? 'Total changes' : 'Total lines compared'}: {semanticDiff.length}
             </span>
             <div className="flex items-center gap-4">
               <span className="text-emerald-600 dark:text-emerald-400">
-                +{lineDiff.filter(l => l.type === 'added').length}
+                +{filterCounts.added}
               </span>
               <span className="text-red-600 dark:text-red-400">
-                -{lineDiff.filter(l => l.type === 'removed').length}
+                -{filterCounts.removed}
               </span>
               <span className="text-blue-600 dark:text-blue-400">
-                ~{lineDiff.filter(l => l.type === 'changed').length}
+                ~{filterCounts.changed}
               </span>
             </div>
           </div>
