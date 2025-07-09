@@ -1,6 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { FileUpload } from '@/components/FileUpload';
-import { DiffViewer } from '@/components/DiffViewer';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
 import { Header } from '@/components/Header';
@@ -22,8 +21,122 @@ import {
   TrendingUp,
   Zap,
   ArrowRight,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
+
+// Lazy load heavy components
+const DiffViewer = lazy(() => import('@/components/DiffViewer').then(module => ({ default: module.DiffViewer })));
+
+// Loading skeleton component
+const LoadingSkeleton = () => (
+  <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50 animate-pulse">
+    <div className="space-y-4">
+      <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-lg w-1/4"></div>
+      <div className="space-y-2">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// Memoized statistics component
+const StatisticsCards = ({ comparisonResult }: { comparisonResult: ComparisonResult }) => {
+  const stats = useMemo(() => [
+    {
+      value: comparisonResult.summary.added,
+      label: 'Added',
+      color: 'from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20',
+      borderColor: 'border-emerald-200/50 dark:border-emerald-700/50',
+      textColor: 'text-emerald-600 dark:text-emerald-400',
+      bgColor: 'bg-emerald-200 dark:bg-emerald-800/50',
+      icon: TrendingUp
+    },
+    {
+      value: comparisonResult.summary.removed,
+      label: 'Removed',
+      color: 'from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20',
+      borderColor: 'border-red-200/50 dark:border-red-700/50',
+      textColor: 'text-red-600 dark:text-red-400',
+      bgColor: 'bg-red-200 dark:bg-red-800/50',
+      icon: TrendingUp,
+      iconClass: 'rotate-180'
+    },
+    {
+      value: comparisonResult.summary.changed,
+      label: 'Changed',
+      color: 'from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20',
+      borderColor: 'border-blue-200/50 dark:border-blue-700/50',
+      textColor: 'text-blue-600 dark:text-blue-400',
+      bgColor: 'bg-blue-200 dark:bg-blue-800/50',
+      icon: RefreshCw
+    },
+    {
+      value: `${comparisonResult.stats.similarities.toFixed(1)}%`,
+      label: 'Similarity',
+      color: 'from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20',
+      borderColor: 'border-purple-200/50 dark:border-purple-700/50',
+      textColor: 'text-purple-600 dark:text-purple-400',
+      bgColor: 'bg-purple-200 dark:bg-purple-800/50',
+      icon: BarChart3
+    }
+  ], [comparisonResult]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      {stats.map((stat, index) => (
+        <div key={index} className={`bg-gradient-to-br ${stat.color} rounded-xl p-4 border ${stat.borderColor}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className={`text-3xl font-bold ${stat.textColor}`}>
+                {stat.value}
+              </div>
+              <div className={`text-sm font-medium ${stat.textColor} opacity-80`}>
+                {stat.label}
+              </div>
+            </div>
+            <div className={`p-2 ${stat.bgColor} rounded-lg`}>
+              <stat.icon className={`w-5 h-5 ${stat.textColor} ${stat.iconClass || ''}`} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Memoized view mode toggle
+const ViewModeToggle = ({ options, onDiffModeChange }: { 
+  options: DiffOptions; 
+  onDiffModeChange: (mode: 'tree' | 'side-by-side' | 'unified') => void;
+}) => {
+  const viewModes = useMemo(() => [
+    { mode: 'side-by-side', icon: SplitSquareHorizontal, label: 'Side-by-Side' },
+    { mode: 'tree', icon: Layers, label: 'Tree' },
+    { mode: 'unified', icon: FileText, label: 'Unified' }
+  ], []);
+
+  return (
+    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/70 rounded-xl p-1">
+      {viewModes.map(({ mode, icon: Icon, label }) => (
+        <button
+          key={mode}
+          onClick={() => onDiffModeChange(mode as any)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            options.diffMode === mode 
+              ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Icon className="w-4 h-4" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 function App() {
   const [leftFile, setLeftFile] = useState<FileUploadState>({
@@ -40,7 +153,6 @@ function App() {
     isValid: false
   });
 
-  // Updated default options - show differences by default
   const [options, setOptions] = useState<DiffOptions>({
     ignoreKeys: [],
     caseSensitive: false,
@@ -51,7 +163,7 @@ function App() {
     ignoreComments: false,
     pathRules: [],
     valueTransformations: [],
-    diffMode: 'side-by-side', // Default to side-by-side for better UX
+    diffMode: 'side-by-side',
     showLineNumbers: true,
     contextLines: 3,
     minimalDiff: false
@@ -68,16 +180,52 @@ function App() {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       const format = detectFormat(file.name, content);
-      const parsed = parseConfig(content, format);
+      
+      // Use requestIdleCallback for non-blocking parsing
+      const parseInBackground = () => {
+        const parsed = parseConfig(content, format);
+        
+        const fileState: FileUploadState = {
+          file,
+          content,
+          format,
+          isValid: !parsed.error,
+          error: parsed.error,
+          lineCount: content.split('\n').length,
+          size: file.size
+        };
+        
+        if (side === 'left') {
+          setLeftFile(fileState);
+        } else {
+          setRightFile(fileState);
+        }
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(parseInBackground);
+      } else {
+        setTimeout(parseInBackground, 0);
+      }
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const handleTextPaste = useCallback((text: string, format: string, side: 'left' | 'right') => {
+    const configFormat = format as ConfigFormat;
+    
+    // Use requestIdleCallback for non-blocking parsing
+    const parseInBackground = () => {
+      const parsed = parseConfig(text, configFormat);
       
       const fileState: FileUploadState = {
-        file,
-        content,
-        format,
+        file: null,
+        content: text,
+        format: configFormat,
         isValid: !parsed.error,
         error: parsed.error,
-        lineCount: content.split('\n').length,
-        size: file.size
+        lineCount: text.split('\n').length,
+        size: new Blob([text]).size
       };
       
       if (side === 'left') {
@@ -86,27 +234,11 @@ function App() {
         setRightFile(fileState);
       }
     };
-    reader.readAsText(file);
-  }, []);
 
-  const handleTextPaste = useCallback((text: string, format: string, side: 'left' | 'right') => {
-    const configFormat = format as ConfigFormat;
-    const parsed = parseConfig(text, configFormat);
-    
-    const fileState: FileUploadState = {
-      file: null,
-      content: text,
-      format: configFormat,
-      isValid: !parsed.error,
-      error: parsed.error,
-      lineCount: text.split('\n').length,
-      size: new Blob([text]).size
-    };
-    
-    if (side === 'left') {
-      setLeftFile(fileState);
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(parseInBackground);
     } else {
-      setRightFile(fileState);
+      setTimeout(parseInBackground, 0);
     }
   }, []);
 
@@ -120,6 +252,9 @@ function App() {
     setError(null);
     
     try {
+      // Use a small delay to allow UI to update
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       const leftParsed = parseConfig(leftFile.content, leftFile.format!);
       const rightParsed = parseConfig(rightFile.content, rightFile.format!);
       
@@ -145,12 +280,21 @@ function App() {
         parsedContent: rightParsed.data
       };
       
-      const result = generateDiff(leftConfigFile, rightConfigFile, options);
-      setComparisonResult(result);
+      // Run diff generation in background
+      const diffGeneration = () => {
+        const result = generateDiff(leftConfigFile, rightConfigFile, options);
+        setComparisonResult(result);
+        setIsComparing(false);
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(diffGeneration);
+      } else {
+        setTimeout(diffGeneration, 0);
+      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during comparison');
-    } finally {
       setIsComparing(false);
     }
   }, [leftFile, rightFile, options]);
@@ -160,27 +304,25 @@ function App() {
   }, [performComparison]);
 
   const handleRecompare = useCallback(() => {
-    // Clear previous results and show loading state
     setComparisonResult(null);
     setError(null);
     setIsComparing(true);
     
-    // Use a timeout to ensure the UI updates before starting the comparison
     setTimeout(() => {
       performComparison();
     }, 50);
   }, [performComparison]);
 
-  // Update comparison when options change (for real-time updates)
+  // Debounced options change handler
   const handleOptionsChange = useCallback((newOptions: DiffOptions) => {
     setOptions(newOptions);
     
-    // If we have a comparison result, automatically re-compare with new options
     if (comparisonResult && leftFile.isValid && rightFile.isValid) {
-      // Small delay to prevent too many rapid updates
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         performComparison();
-      }, 100);
+      }, 300);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [comparisonResult, leftFile.isValid, rightFile.isValid, performComparison]);
   
@@ -239,7 +381,6 @@ function App() {
     lines.push(`+++ ${rightFile.file?.name || 'Right Text'}`);
     lines.push('');
     
-    // Generate unified diff from changes
     comparisonResult.changes.forEach((change) => {
       const path = change.path || '';
       
@@ -269,7 +410,7 @@ function App() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
-        {/* Results Section - Moved to TOP */}
+        {/* Results Section */}
         {comparisonResult && (
           <div className="mb-8 animate-fade-in">
             
@@ -357,105 +498,14 @@ function App() {
               </div>
 
               {/* Statistics Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl p-4 border border-emerald-200/50 dark:border-emerald-700/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-                        {comparisonResult.summary.added}
-                      </div>
-                      <div className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Added</div>
-                    </div>
-                    <div className="p-2 bg-emerald-200 dark:bg-emerald-800/50 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-red-200/50 dark:border-red-700/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-3xl font-bold text-red-600 dark:text-red-400">
-                        {comparisonResult.summary.removed}
-                      </div>
-                      <div className="text-sm font-medium text-red-700 dark:text-red-300">Removed</div>
-                    </div>
-                    <div className="p-2 bg-red-200 dark:bg-red-800/50 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-red-600 dark:text-red-400 rotate-180" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-4 border border-blue-200/50 dark:border-blue-700/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                        {comparisonResult.summary.changed}
-                      </div>
-                      <div className="text-sm font-medium text-blue-700 dark:text-blue-300">Changed</div>
-                    </div>
-                    <div className="p-2 bg-blue-200 dark:bg-blue-800/50 rounded-lg">
-                      <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-purple-200/50 dark:border-purple-700/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                        {comparisonResult.stats.similarities.toFixed(1)}%
-                      </div>
-                      <div className="text-sm font-medium text-purple-700 dark:text-purple-300">Similarity</div>
-                    </div>
-                    <div className="p-2 bg-purple-200 dark:bg-purple-800/50 rounded-lg">
-                      <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <StatisticsCards comparisonResult={comparisonResult} />
 
               {/* View Mode Toggle */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                   <span className="font-medium">View Mode:</span>
                 </div>
-                
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/70 rounded-xl p-1">
-                  <button
-                    onClick={() => handleDiffModeChange('side-by-side')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      options.diffMode === 'side-by-side' 
-                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
-                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-                    }`}
-                  >
-                    <SplitSquareHorizontal className="w-4 h-4" />
-                    Side-by-Side
-                  </button>
-                  <button
-                    onClick={() => handleDiffModeChange('tree')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      options.diffMode === 'tree' 
-                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
-                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-                    }`}
-                  >
-                    <Layers className="w-4 h-4" />
-                    Tree
-                  </button>
-                  <button
-                    onClick={() => handleDiffModeChange('unified')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      options.diffMode === 'unified' 
-                        ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
-                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-                    }`}
-                  >
-                    <FileText className="w-4 h-4" />
-                    Unified
-                  </button>
-                </div>
+                <ViewModeToggle options={options} onDiffModeChange={handleDiffModeChange} />
               </div>
             </div>
 
@@ -489,10 +539,12 @@ function App() {
                       Tree View - Changes ({comparisonResult.changes.length})
                     </h3>
                   </div>
-                  <DiffViewer
-                    result={comparisonResult}
-                    options={options}
-                  />
+                  <Suspense fallback={<LoadingSkeleton />}>
+                    <DiffViewer
+                      result={comparisonResult}
+                      options={options}
+                    />
+                  </Suspense>
                 </div>
               )}
             </div>
@@ -599,7 +651,7 @@ function App() {
                   >
                     {isComparing ? (
                       <>
-                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <Loader2 className="w-5 h-5 animate-spin" />
                         Comparing...
                       </>
                     ) : (
