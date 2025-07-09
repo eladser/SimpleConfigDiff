@@ -8,9 +8,7 @@ import {
   Filter, 
   X, 
   Eye, 
-  EyeOff,
-  ChevronDown,
-  ChevronUp
+  EyeOff
 } from 'lucide-react';
 
 interface SideBySideDiffProps {
@@ -23,32 +21,6 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-
-  // Memoized filtered changes
-  const filteredChanges = useMemo(() => {
-    let filtered = result.changes;
-
-    // Apply type filter
-    if (filterType !== 'all') {
-      filtered = filtered.filter(change => change.type === filterType);
-    }
-
-    // Apply search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(change => {
-        const pathMatch = change.path.toLowerCase().includes(searchLower);
-        const oldValueMatch = change.oldValue && 
-          String(change.oldValue).toLowerCase().includes(searchLower);
-        const newValueMatch = change.newValue && 
-          String(change.newValue).toLowerCase().includes(searchLower);
-        
-        return pathMatch || oldValueMatch || newValueMatch;
-      });
-    }
-
-    return filtered;
-  }, [result.changes, filterType, searchTerm]);
 
   // Memoized filter counts
   const filterCounts = useMemo(() => ({
@@ -112,16 +84,6 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
     
     return lines;
   }, [lineDiff, searchTerm, filterType, showUnchanged]);
-
-  const toggleSection = useCallback((path: string) => {
-    const newCollapsed = new Set(collapsedSections);
-    if (newCollapsed.has(path)) {
-      newCollapsed.delete(path);
-    } else {
-      newCollapsed.add(path);
-    }
-    setCollapsedSections(newCollapsed);
-  }, [collapsedSections]);
 
   const highlightSearchTerm = useCallback((text: string) => {
     if (!searchTerm) return text;
