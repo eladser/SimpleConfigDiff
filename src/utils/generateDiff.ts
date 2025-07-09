@@ -1,5 +1,91 @@
-import * as deepDiff from 'deep-diff';
 import { DiffChange, DiffOptions, ComparisonResult, ConfigFile } from '@/types';
+
+// Simple diff implementation to avoid deep-diff dependency issues
+interface SimpleDiff {
+  kind: 'N' | 'D' | 'E' | 'A';
+  path?: string[];
+  lhs?: any;
+  rhs?: any;
+  index?: number;
+  item?: SimpleDiff;
+}
+
+function simpleDiff(left: any, right: any, path: string[] = []): SimpleDiff[] {
+  const diffs: SimpleDiff[] = [];
+  
+  if (left === right) {
+    return diffs;
+  }
+  
+  // Handle primitive values
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) {
+    if (left === undefined) {
+      diffs.push({ kind: 'N', path, rhs: right });
+    } else if (right === undefined) {
+      diffs.push({ kind: 'D', path, lhs: left });
+    } else {
+      diffs.push({ kind: 'E', path, lhs: left, rhs: right });
+    }
+    return diffs;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(left) || Array.isArray(right)) {
+    const leftArray = Array.isArray(left) ? left : [];
+    const rightArray = Array.isArray(right) ? right : [];
+    const maxLength = Math.max(leftArray.length, rightArray.length);
+    
+    for (let i = 0; i < maxLength; i++) {
+      const leftItem = leftArray[i];
+      const rightItem = rightArray[i];
+      
+      if (leftItem === undefined) {
+        diffs.push({
+          kind: 'A',
+          path,
+          index: i,
+          item: { kind: 'N', rhs: rightItem }
+        });
+      } else if (rightItem === undefined) {
+        diffs.push({
+          kind: 'A',
+          path,
+          index: i,
+          item: { kind: 'D', lhs: leftItem }
+        });
+      } else if (leftItem !== rightItem) {
+        diffs.push({
+          kind: 'A',
+          path,
+          index: i,
+          item: { kind: 'E', lhs: leftItem, rhs: rightItem }
+        });
+      }
+    }
+    return diffs;
+  }
+  
+  // Handle objects
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  const allKeys = new Set([...leftKeys, ...rightKeys]);
+  
+  for (const key of allKeys) {
+    const leftValue = left[key];
+    const rightValue = right[key];
+    
+    if (!(key in left)) {
+      diffs.push({ kind: 'N', path: [...path, key], rhs: rightValue });
+    } else if (!(key in right)) {
+      diffs.push({ kind: 'D', path: [...path, key], lhs: leftValue });
+    } else {
+      const subDiffs = simpleDiff(leftValue, rightValue, [...path, key]);
+      diffs.push(...subDiffs);
+    }
+  }
+  
+  return diffs;
+}
 
 export function flattenObject(obj: any, prefix = ''): Record<string, any> {
   const flattened: Record<string, any> = {};
@@ -87,7 +173,7 @@ export function getValueType(value: any): string {
 export function formatValue(value: any): string {
   if (value === null) return 'null';
   if (value === undefined) return 'undefined';
-  if (typeof value === 'string') return `\"${value}\"`;
+  if (typeof value === 'string') return `"${value}"`;
   if (typeof value === 'object') {
     if (Array.isArray(value)) {
       return `[${value.map(formatValue).join(', ')}]`;
@@ -106,12 +192,12 @@ export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, option
   const leftProcessed = options.flattenKeys ? flattenObject(leftData) : leftData;
   const rightProcessed = options.flattenKeys ? flattenObject(rightData) : rightData;
   
-  // Generate diff using deep-diff
-  const differences = deepDiff.diff(leftProcessed, rightProcessed) || [];
+  // Generate diff using simple diff
+  const differences = simpleDiff(leftProcessed, rightProcessed);
   
   const changes: DiffChange[] = [];
   
-  differences.forEach(diff => {
+  differences.forEach((diff: SimpleDiff) => {
     const path = Array.isArray(diff.path) ? diff.path.join('.') : String(diff.path || '');
     
     switch (diff.kind) {
@@ -146,21 +232,21 @@ export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, option
         
       case 'A': // Array change
         const arrayPath = path + `[${diff.index}]`;
-        if (diff.item.kind === 'N') {
+        if (diff.item?.kind === 'N') {
           changes.push({
             path: arrayPath,
             type: 'added',
             newValue: diff.item.rhs,
             newType: getValueType(diff.item.rhs)
           });
-        } else if (diff.item.kind === 'D') {
+        } else if (diff.item?.kind === 'D') {
           changes.push({
             path: arrayPath,
             type: 'removed',
             oldValue: diff.item.lhs,
             oldType: getValueType(diff.item.lhs)
           });
-        } else if (diff.item.kind === 'E') {
+        } else if (diff.item?.kind === 'E') {
           changes.push({
             path: arrayPath,
             type: 'changed',
