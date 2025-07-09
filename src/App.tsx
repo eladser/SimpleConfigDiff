@@ -4,7 +4,7 @@ import { DiffViewer } from '@/components/DiffViewer';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
 import { Header } from '@/components/Header';
-import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings, ConfigFormat } from '@/types';
+import { FileUploadState, DiffOptions, ComparisonResult, ConfigFormat } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
@@ -55,15 +55,6 @@ function App() {
     showLineNumbers: true,
     contextLines: 3,
     minimalDiff: false
-  });
-  
-  const [viewSettings, setViewSettings] = useState<DiffViewSettings>({
-    highlightSyntax: true,
-    showMinimap: false,
-    showLineNumbers: true,
-    wrapLines: true,
-    fontSize: 14,
-    theme: 'vs-dark'
   });
   
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
