@@ -9,58 +9,89 @@
   
   body {
     @apply antialiased;
+    @apply bg-gray-50 dark:bg-gray-900;
+    @apply text-gray-900 dark:text-gray-100;
   }
 }
 
 @layer components {
   .btn {
     @apply px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply focus:ring-offset-white dark:focus:ring-offset-gray-900;
   }
   
   .btn-primary {
     @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+    @apply dark:bg-primary-500 dark:hover:bg-primary-600;
   }
   
   .btn-secondary {
     @apply bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
+    @apply dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600;
   }
   
   .btn-success {
     @apply bg-success-600 text-white hover:bg-success-700 focus:ring-success-500;
+    @apply dark:bg-success-500 dark:hover:bg-success-600;
   }
   
   .btn-danger {
     @apply bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500;
+    @apply dark:bg-danger-500 dark:hover:bg-danger-600;
   }
   
   .card {
     @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+    @apply dark:bg-gray-800 dark:border-gray-700;
   }
   
   .diff-added {
     @apply bg-success-50 text-success-900 border-success-200;
+    @apply dark:bg-success-900/20 dark:text-success-300 dark:border-success-800;
   }
   
   .diff-removed {
     @apply bg-danger-50 text-danger-900 border-danger-200;
+    @apply dark:bg-danger-900/20 dark:text-danger-300 dark:border-danger-800;
   }
   
   .diff-changed {
     @apply bg-warning-50 text-warning-900 border-warning-200;
+    @apply dark:bg-warning-900/20 dark:text-warning-300 dark:border-warning-800;
   }
   
   .file-dropzone {
     @apply border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors;
+    @apply dark:border-gray-600 dark:hover:border-primary-500;
   }
   
   .file-dropzone.active {
     @apply border-primary-500 bg-primary-50;
+    @apply dark:border-primary-400 dark:bg-primary-900/20;
+  }
+  
+  /* Dark mode text colors */
+  .text-muted {
+    @apply text-gray-600 dark:text-gray-400;
+  }
+  
+  .text-muted-foreground {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+  
+  .bg-muted {
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+  
+  .border-muted {
+    @apply border-gray-200 dark:border-gray-700;
   }
 }
 
 @layer utilities {
   .text-gradient {
     @apply bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent;
+    @apply dark:from-primary-400 dark:to-primary-600;
   }
   
   .animate-pulse-slow {
