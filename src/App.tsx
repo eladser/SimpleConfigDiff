@@ -122,24 +122,24 @@ function App() {
   const canCompare = leftFile.isValid && rightFile.isValid;
   
   return (
-    <div className=\"min-h-screen bg-gray-50\">
+    <div className="min-h-screen bg-gray-50">
       <Header />
       
-      <div className=\"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8\">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* File Upload Section */}
-        <div className=\"grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8\">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <FileUpload
-            title=\"Configuration File A\"
+            title="Configuration File A"
             fileState={leftFile}
             onFileUpload={(file) => handleFileUpload(file, 'left')}
-            placeholder=\"Drop your first config file here or click to browse\"
+            placeholder="Drop your first config file here or click to browse"
           />
           
           <FileUpload
-            title=\"Configuration File B\"
+            title="Configuration File B"
             fileState={rightFile}
             onFileUpload={(file) => handleFileUpload(file, 'right')}
-            placeholder=\"Drop your second config file here or click to browse\"
+            placeholder="Drop your second config file here or click to browse"
           />
         </div>
         
@@ -150,8 +150,8 @@ function App() {
         />
         
         {/* Controls */}
-        <div className=\"flex items-center justify-between mb-8\">
-          <div className=\"flex items-center gap-4\">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
             <button
               onClick={handleCompare}
               disabled={!canCompare || isComparing}
@@ -161,12 +161,12 @@ function App() {
             >
               {isComparing ? (
                 <>
-                  <RefreshCw className=\"w-5 h-5 animate-spin\" />
+                  <RefreshCw className="w-5 h-5 animate-spin" />
                   Comparing...
                 </>
               ) : (
                 <>
-                  <RefreshCw className=\"w-5 h-5\" />
+                  <RefreshCw className="w-5 h-5" />
                   Compare Files
                 </>
               )}
@@ -174,14 +174,14 @@ function App() {
             
             <button
               onClick={handleReset}
-              className=\"btn btn-secondary px-4 py-3\"
+              className="btn btn-secondary px-4 py-3"
             >
               Reset
             </button>
           </div>
           
           {comparisonResult && (
-            <div className=\"text-sm text-gray-600\">
+            <div className="text-sm text-gray-600">
               Found {comparisonResult.summary.total} differences
             </div>
           )}
@@ -189,11 +189,11 @@ function App() {
         
         {/* Error Display */}
         {error && (
-          <div className=\"bg-red-50 border border-red-200 rounded-lg p-4 mb-8\">
-            <div className=\"flex items-center\">
-              <div className=\"text-red-800 font-medium\">Error</div>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+            <div className="flex items-center">
+              <div className="text-red-800 font-medium">Error</div>
             </div>
-            <div className=\"text-red-700 mt-1\">{error}</div>
+            <div className="text-red-700 mt-1">{error}</div>
           </div>
         )}
         
