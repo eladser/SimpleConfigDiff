@@ -30,6 +30,13 @@ export interface DiffChange {
     serviceName?: string;
     resourceName?: string;
   };
+  // Kubernetes-specific fields
+  kubernetesContext?: {
+    kind: string;
+    name: string;
+    namespace: string;
+    apiVersion: string;
+  };
 }
 
 export interface PathRule {
@@ -100,6 +107,15 @@ export interface DiffStats {
     volumesRemoved: number;
     volumesChanged: number;
   };
+  // Kubernetes-specific stats
+  kubernetesStats?: {
+    resourcesAdded: number;
+    resourcesRemoved: number;
+    resourcesChanged: number;
+    namespacesAdded: number;
+    namespacesRemoved: number;
+    kindCounts: Record<string, { added: number; removed: number; changed: number }>;
+  };
 }
 
 export interface ParsedConfig {
@@ -151,6 +167,35 @@ export interface ParsedConfig {
       file: boolean;
     }>;
     hasXExtensions: boolean;
+  };
+  // Kubernetes-specific metadata
+  kubernetesMetadata?: {
+    totalDocuments: number;
+    resourceTypes: string[];
+    namespaces: string[];
+    apiVersions: string[];
+    resources: Array<{
+      index: number;
+      kind: string;
+      apiVersion: string;
+      name: string;
+      namespace: string;
+      labels: string[];
+      annotations: string[];
+      hasStatus: boolean;
+    }>;
+    summary: {
+      deployments: number;
+      services: number;
+      configMaps: number;
+      secrets: number;
+      ingresses: number;
+      pods: number;
+      rbacResources: number;
+      networkPolicies: number;
+      persistentVolumes: number;
+      serviceAccounts: number;
+    };
   };
 }
 
