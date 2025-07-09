@@ -8,7 +8,6 @@ export function parseXML(content: string): ParsedConfig {
       attributeNamePrefix: '@_',
       textNodeName: '#text',
       ignoreDeclaration: true,
-      ignoreNameSpace: false,
       parseAttributeValue: true,
       parseTagValue: true,
       arrayMode: false,
@@ -16,7 +15,7 @@ export function parseXML(content: string): ParsedConfig {
       cdataTagName: '__cdata',
       cdataPositionChar: '\c',
       parseTrueNumberOnly: false,
-      isArray: (name, jpath, isLeafNode, isAttribute) => {
+      isArray: (name: string) => {
         // Handle common XML arrays
         if (name === 'item' || name === 'entry' || name === 'element') {
           return true;
