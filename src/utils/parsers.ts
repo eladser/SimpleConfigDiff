@@ -10,12 +10,19 @@ import { parseProperties } from './parseProperties';
 import { parseCSV } from './parseCSV';
 import { parseDockerCompose } from './parseDockerCompose';
 import { parseKubernetes } from './parseKubernetes';
+import { parseTemplate, detectTemplateFormat } from './parseTemplate';
 
 export function detectFormat(filename: string, content: string): ConfigFormat {
   const ext = filename.split('.').pop()?.toLowerCase();
   const name = filename.toLowerCase();
   
-  // Check for Docker Compose files first
+  // Check for template files first
+  const templateFormat = detectTemplateFormat(content, filename);
+  if (templateFormat) {
+    return templateFormat;
+  }
+  
+  // Check for Docker Compose files
   if (name.includes('docker-compose') || name.includes('compose') || 
       name === 'docker-compose.yml' || name === 'docker-compose.yaml' ||
       name === 'compose.yml' || name === 'compose.yaml') {
@@ -44,6 +51,15 @@ export function detectFormat(filename: string, content: string): ConfigFormat {
       return 'properties';
     case 'csv':
       return 'csv';
+    case 'j2':
+    case 'jinja':
+    case 'jinja2':
+      return 'jinja2';
+    case 'hbs':
+    case 'handlebars':
+      return 'handlebars';
+    case 'mustache':
+      return 'mustache';
     case 'config':
     case 'conf':
       return 'config';
@@ -54,6 +70,19 @@ export function detectFormat(filename: string, content: string): ConfigFormat {
 
 function detectFormatByContent(content: string): ConfigFormat {
   const trimmed = content.trim();
+  
+  // Template detection
+  if (trimmed.includes('{%') || trimmed.includes('{#') || trimmed.includes('|')) {
+    return 'jinja2';
+  }
+  
+  if (trimmed.includes('{{#') || trimmed.includes('{{!') || trimmed.includes('{{>')) {
+    return 'handlebars';
+  }
+  
+  if (trimmed.includes('{{') && trimmed.includes('}}') && !trimmed.includes('{%')) {
+    return 'mustache';
+  }
   
   // JSON detection
   if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
@@ -199,6 +228,15 @@ export function parseConfig(content: string, format: ConfigFormat, filename: str
       return parseProperties(content);
     case 'csv':
       return parseCSV(content);
+    case 'jinja2':
+    case 'handlebars':
+    case 'mustache':
+      const templateResult = parseTemplate(content, filename);
+      return {
+        data: templateResult ? templateResult.variables : {},
+        format,
+        error: templateResult ? undefined : 'Failed to parse template'
+      };
     case 'config':
       return parseINI(content); // Default to INI for generic config files
     default:
@@ -220,7 +258,10 @@ export const formatNames: Record<ConfigFormat, string> = {
   env: 'Environment',
   hcl: 'HCL/Terraform',
   properties: 'Properties',
-  csv: 'CSV'
+  csv: 'CSV',
+  jinja2: 'Jinja2',
+  handlebars: 'Handlebars',
+  mustache: 'Mustache'
 };
 
 export const formatExtensions: Record<ConfigFormat, string> = {
@@ -233,7 +274,10 @@ export const formatExtensions: Record<ConfigFormat, string> = {
   env: '.env',
   hcl: '.hcl/.tf',
   properties: '.properties',
-  csv: '.csv'
+  csv: '.csv',
+  jinja2: '.j2/.jinja/.jinja2',
+  handlebars: '.hbs/.handlebars',
+  mustache: '.mustache'
 };
 
 export function getFormatDescription(format: ConfigFormat): string {
@@ -247,7 +291,10 @@ export function getFormatDescription(format: ConfigFormat): string {
     env: 'Environment Variables',
     hcl: 'HashiCorp Configuration Language',
     properties: 'Java Properties File',
-    csv: 'Comma-Separated Values'
+    csv: 'Comma-Separated Values',
+    jinja2: 'Jinja2 Template',
+    handlebars: 'Handlebars Template',
+    mustache: 'Mustache Template'
   };
   
   return descriptions[format] || 'Unknown format';
@@ -269,7 +316,10 @@ export function getFormatIcon(format: ConfigFormat): string {
     env: '🌍',
     hcl: '🏗️',
     properties: '☕',
-    csv: '📊'
+    csv: '📊',
+    jinja2: '🔧',
+    handlebars: '🔧',
+    mustache: '🔧'
   };
   
   return icons[format] || '📄';
@@ -286,15 +336,28 @@ export function getSupportedExtensions(): string[] {
     '.hcl', '.tf',
     '.properties',
     '.csv',
-    '.config', '.conf'
+    '.config', '.conf',
+    '.j2', '.jinja', '.jinja2',
+    '.hbs', '.handlebars',
+    '.mustache'
   ];
 }
 
 export function isSpecializedFormat(filename: string, content: string): { 
   isSpecialized: boolean; 
-  type?: 'docker-compose' | 'kubernetes'; 
+  type?: 'docker-compose' | 'kubernetes' | 'template'; 
   description?: string; 
 } {
+  // Check for templates
+  const templateFormat = detectTemplateFormat(content, filename);
+  if (templateFormat) {
+    return {
+      isSpecialized: true,
+      type: 'template',
+      description: `${templateFormat} template with variable extraction`
+    };
+  }
+  
   // Check for Docker Compose
   if (isDockerComposeFile(filename, content)) {
     return {
