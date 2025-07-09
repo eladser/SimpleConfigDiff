@@ -290,7 +290,7 @@ export class ComparisonHistory {
       }
 
     } catch (error) {
-      result.errors.push(`Failed to parse import data: ${error.message}`);
+      result.errors.push(`Failed to parse import data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     return result;
