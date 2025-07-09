@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { ComparisonResult, DiffChange, DiffViewSettings, SearchFilters } from '@/types';
 import { ChevronRight, ChevronDown, Search, Filter, Eye, EyeOff } from 'lucide-react';
+import { Minimap } from './Minimap';
 
 interface SideBySideDiffProps {
   result: ComparisonResult;
@@ -27,6 +28,8 @@ export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySid
   
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const [currentViewport, setCurrentViewport] = useState({ start: 0, end: 20 });
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const filteredChanges = useMemo(() => {
     return result.changes.filter(change => {
@@ -61,6 +64,9 @@ export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySid
   const leftLines = useMemo(() => generateLines(filteredChanges, 'left'), [filteredChanges]);
   const rightLines = useMemo(() => generateLines(filteredChanges, 'right'), [filteredChanges]);
 
+  // Calculate total lines for minimap
+  const totalLines = Math.max(leftLines.length, rightLines.length);
+
   const toggleSection = (path: string) => {
     const newExpanded = new Set(expandedSections);
     if (newExpanded.has(path)) {
@@ -91,6 +97,27 @@ export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySid
     }
   };
 
+  const handleViewportChange = (start: number, end: number) => {
+    setCurrentViewport({ start, end });
+    
+    // Scroll to the corresponding position in the diff content
+    if (contentRef.current) {
+      const scrollTop = (start / totalLines) * contentRef.current.scrollHeight;
+      contentRef.current.scrollTop = scrollTop;
+    }
+  };
+
+  // Update viewport when user scrolls
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const scrollPercentage = target.scrollTop / (target.scrollHeight - target.clientHeight);
+    const visibleLines = Math.floor((target.clientHeight / target.scrollHeight) * totalLines);
+    const start = Math.floor(scrollPercentage * (totalLines - visibleLines));
+    const end = start + visibleLines;
+    
+    setCurrentViewport({ start, end });
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header with controls */}
@@ -118,7 +145,11 @@ export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySid
             
             <button
               onClick={() => onSettingsChange({ ...settings, showMinimap: !settings.showMinimap })}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              className={`flex items-center gap-1 px-3 py-1 text-sm rounded-md transition-colors ${
+                settings.showMinimap 
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
+                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
             >
               {settings.showMinimap ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               Minimap
@@ -194,48 +225,71 @@ export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySid
         )}
       </div>
 
-      {/* File headers */}
-      <div className="grid grid-cols-2 border-b border-gray-200 dark:border-gray-700">
-        <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-r border-gray-200 dark:border-gray-700">
-          <div className="font-medium text-red-800 dark:text-red-300">{result.leftFile.name}</div>
-          <div className="text-sm text-red-600 dark:text-red-400">{result.leftFile.format.toUpperCase()}</div>
-        </div>
-        <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20">
-          <div className="font-medium text-green-800 dark:text-green-300">{result.rightFile.name}</div>
-          <div className="text-sm text-green-600 dark:text-green-400">{result.rightFile.format.toUpperCase()}</div>
-        </div>
-      </div>
+      {/* Main content with minimap */}
+      <div className="flex">
+        {/* Diff content */}
+        <div className="flex-1">
+          {/* File headers */}
+          <div className="grid grid-cols-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-r border-gray-200 dark:border-gray-700">
+              <div className="font-medium text-red-800 dark:text-red-300">{result.leftFile.name}</div>
+              <div className="text-sm text-red-600 dark:text-red-400">{result.leftFile.format.toUpperCase()}</div>
+            </div>
+            <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20">
+              <div className="font-medium text-green-800 dark:text-green-300">{result.rightFile.name}</div>
+              <div className="text-sm text-green-600 dark:text-green-400">{result.rightFile.format.toUpperCase()}</div>
+            </div>
+          </div>
 
-      {/* Diff content */}
-      <div className="max-h-96 overflow-auto">
-        <div className="grid grid-cols-2">
-          <div className="border-r border-gray-200 dark:border-gray-700">
-            {leftLines.map((line, index) => (
-              <DiffLineComponent
-                key={index}
-                line={line}
-                settings={settings}
-                getSeverityColor={getSeverityColor}
-                getCategoryIcon={getCategoryIcon}
-                onToggleSection={toggleSection}
-                isExpanded={expandedSections.has(line.path || '')}
-              />
-            ))}
-          </div>
-          <div>
-            {rightLines.map((line, index) => (
-              <DiffLineComponent
-                key={index}
-                line={line}
-                settings={settings}
-                getSeverityColor={getSeverityColor}
-                getCategoryIcon={getCategoryIcon}
-                onToggleSection={toggleSection}
-                isExpanded={expandedSections.has(line.path || '')}
-              />
-            ))}
+          {/* Diff content */}
+          <div 
+            ref={contentRef}
+            className="max-h-96 overflow-auto"
+            onScroll={handleScroll}
+          >
+            <div className="grid grid-cols-2">
+              <div className="border-r border-gray-200 dark:border-gray-700">
+                {leftLines.map((line, index) => (
+                  <DiffLineComponent
+                    key={index}
+                    line={line}
+                    settings={settings}
+                    getSeverityColor={getSeverityColor}
+                    getCategoryIcon={getCategoryIcon}
+                    onToggleSection={toggleSection}
+                    isExpanded={expandedSections.has(line.path || '')}
+                  />
+                ))}
+              </div>
+              <div>
+                {rightLines.map((line, index) => (
+                  <DiffLineComponent
+                    key={index}
+                    line={line}
+                    settings={settings}
+                    getSeverityColor={getSeverityColor}
+                    getCategoryIcon={getCategoryIcon}
+                    onToggleSection={toggleSection}
+                    isExpanded={expandedSections.has(line.path || '')}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Minimap */}
+        {settings.showMinimap && (
+          <div className="w-48 border-l border-gray-200 dark:border-gray-700">
+            <Minimap
+              changes={filteredChanges}
+              totalLines={totalLines}
+              currentViewport={currentViewport}
+              onViewportChange={handleViewportChange}
+              className="h-full"
+            />
+          </div>
+        )}
       </div>
 
       {/* Statistics footer */}
