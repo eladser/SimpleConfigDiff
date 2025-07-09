@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ComparisonResult } from '@/types';
-import { Download, FileText, Code, Share2 } from 'lucide-react';
+import { FileText, Code, Share2 } from 'lucide-react';
 
 interface ExportOptionsProps {
   result: ComparisonResult;
