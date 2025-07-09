@@ -11,7 +11,6 @@ export function parseXML(content: string): ParsedConfig {
       parseAttributeValue: true,
       parseTagValue: true,
       trimValues: true,
-      cdataTagName: '__cdata',
       parseTrueNumberOnly: false,
       isArray: (name: string) => {
         // Handle common XML arrays
