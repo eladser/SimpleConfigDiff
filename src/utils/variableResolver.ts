@@ -216,14 +216,14 @@ export class VariableResolver {
       return (window as any).ENV_VARS?.[name];
     }
     
-    // Node.js environment - use globalThis for better compatibility
-    if (typeof globalThis !== 'undefined' && (globalThis as any).process?.env) {
-      return (globalThis as any).process.env[name];
-    }
-    
-    // Fallback: try to access process directly if available
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[name];
+    // Node.js environment - check if process is available safely
+    try {
+      if (typeof globalThis !== 'undefined' && 
+          (globalThis as any).process?.env) {
+        return (globalThis as any).process.env[name];
+      }
+    } catch (e) {
+      // Silently fail if process is not available
     }
     
     return undefined;
