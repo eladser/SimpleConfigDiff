@@ -1,4 +1,4 @@
-import { DiffChange, DiffOptions, ComparisonResult, ConfigFile } from '@/types';
+import { DiffChange, DiffOptions, ComparisonResult, ConfigFile, DiffStats } from '@/types';
 import { SemanticComparator, PathMatcher, ValueTransformer, DiffSeverityAnalyzer, DiffStatistics } from './advancedComparison';
 import { generateUnifiedDiff } from './unifiedDiff';
 import { compareCSVData } from './parseCSV';
@@ -270,7 +270,7 @@ function generateCSVDiff(leftFile: ConfigFile, rightFile: ConfigFile, options: D
   };
   
   // Calculate statistics with CSV-specific stats
-  const stats = DiffStatistics.calculate(changes, leftFile.content, rightFile.content);
+  const stats: DiffStats = DiffStatistics.calculate(changes, leftFile.content, rightFile.content);
   stats.csvStats = csvComparison.stats;
   
   return {
