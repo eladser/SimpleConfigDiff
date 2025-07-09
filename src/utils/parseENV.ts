@@ -3,7 +3,7 @@ import { ParsedConfig } from '@/types';
 export function parseENV(content: string): ParsedConfig {
   try {
     const data: Record<string, string> = {};
-    const lines = content.split('\\n');
+    const lines = content.split('\n');
     
     for (const line of lines) {
       const trimmed = line.trim();
@@ -24,7 +24,7 @@ export function parseENV(content: string): ParsedConfig {
       
       // Remove quotes if present
       if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith(\"'\") && value.endsWith(\"'\"))) {
+          (value.startsWith("'") && value.endsWith("'"))) {
         value = value.slice(1, -1);
       }
       
@@ -33,9 +33,9 @@ export function parseENV(content: string): ParsedConfig {
         data[key] = true as any;
       } else if (value.toLowerCase() === 'false') {
         data[key] = false as any;
-      } else if (/^\\d+$/.test(value)) {
+      } else if (/^\d+$/.test(value)) {
         data[key] = parseInt(value, 10) as any;
-      } else if (/^\\d+\\.\\d+$/.test(value)) {
+      } else if (/^\d+\.\d+$/.test(value)) {
         data[key] = parseFloat(value) as any;
       } else {
         data[key] = value;
