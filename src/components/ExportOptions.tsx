@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ComparisonResult, DiffOptions } from '@/types';
 import { FileText, Code, Share2, FileSpreadsheet, FileImage, Download } from 'lucide-react';
-import { exportDiff, downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
+import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
 import { downloadExcel } from '@/utils/exportExcel';
 
 interface ExportOptionsProps {
