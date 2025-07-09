@@ -9,6 +9,7 @@ import { parseHCL } from './parseHCL';
 import { parseProperties } from './parseProperties';
 import { parseCSV } from './parseCSV';
 import { parseDockerCompose } from './parseDockerCompose';
+import { parseKubernetes } from './parseKubernetes';
 
 export function detectFormat(filename: string, content: string): ConfigFormat {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -150,10 +151,33 @@ function isDockerComposeFile(filename: string, content: string): boolean {
   return false;
 }
 
+function isKubernetesFile(filename: string, content: string): boolean {
+  const name = filename.toLowerCase();
+  
+  // Check filename patterns
+  if (name.includes('k8s') || name.includes('kubernetes') || 
+      name.includes('kube') || name.includes('manifest')) {
+    return true;
+  }
+  
+  // Check content for Kubernetes indicators
+  const trimmed = content.trim();
+  if (trimmed.includes('apiVersion:') && trimmed.includes('kind:')) {
+    return true;
+  }
+  
+  return false;
+}
+
 export function parseConfig(content: string, format: ConfigFormat, filename: string = ''): ParsedConfig {
   // Special handling for Docker Compose files
   if (format === 'yaml' && isDockerComposeFile(filename, content)) {
     return parseDockerCompose(content);
+  }
+  
+  // Special handling for Kubernetes manifests
+  if (format === 'yaml' && isKubernetesFile(filename, content)) {
+    return parseKubernetes(content);
   }
   
   switch (format) {
@@ -281,7 +305,7 @@ export function isSpecializedFormat(filename: string, content: string): {
   }
   
   // Check for Kubernetes manifests
-  if (content.includes('apiVersion:') && content.includes('kind:')) {
+  if (isKubernetesFile(filename, content)) {
     return {
       isSpecialized: true,
       type: 'kubernetes',
