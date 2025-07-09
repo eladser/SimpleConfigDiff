@@ -75,7 +75,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const formatValue = (value: any) => {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
-    if (typeof value === 'string') return `"${value}"`;
+    if (typeof value === 'string') return `"${value}";
     if (typeof value === 'object') {
       try {
         return JSON.stringify(value, null, 2);
@@ -241,16 +241,18 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
                           Line {entry.leftLine}
                         </div>
                       )}
-                      <div className="flex items-center justify-center min-h-[60px]">
-                        <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto text-center">
-                          {entry.type === 'added' ? (
-                            <span className="text-slate-400 dark:text-slate-500 italic">
-                              (not present)
-                            </span>
-                          ) : (
-                            formatValue(entry.leftValue)
-                          )}
-                        </pre>
+                      <div className="flex items-center justify-center min-h-[80px]">
+                        <div className="w-full max-w-full">
+                          <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words text-center">
+                            {entry.type === 'added' ? (
+                              <span className="text-slate-400 dark:text-slate-500 italic">
+                                (not present)
+                              </span>
+                            ) : (
+                              formatValue(entry.leftValue)
+                            )}
+                          </pre>
+                        </div>
                       </div>
                     </div>
 
@@ -261,16 +263,18 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
                           Line {entry.rightLine}
                         </div>
                       )}
-                      <div className="flex items-center justify-center min-h-[60px]">
-                        <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto text-center">
-                          {entry.type === 'removed' ? (
-                            <span className="text-slate-400 dark:text-slate-500 italic">
-                              (not present)
-                            </span>
-                          ) : (
-                            formatValue(entry.rightValue)
-                          )}
-                        </pre>
+                      <div className="flex items-center justify-center min-h-[80px]">
+                        <div className="w-full max-w-full">
+                          <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words text-center">
+                            {entry.type === 'removed' ? (
+                              <span className="text-slate-400 dark:text-slate-500 italic">
+                                (not present)
+                              </span>
+                            ) : (
+                              formatValue(entry.rightValue)
+                            )}
+                          </pre>
+                        </div>
                       </div>
                     </div>
                   </div>
