@@ -1,250 +1,235 @@
-# 🔄 SimpleConfigDiff
+# SimpleConfigDiff
 
-A professional, browser-based tool that compares configuration files and outputs human-friendly structured diffs. Built with React, TypeScript, and TailwindCSS.
+A powerful, browser-based tool that compares configuration files (JSON, YAML, XML, INI, TOML, ENV) and outputs human-friendly structured diffs with advanced analysis capabilities.
 
-[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
-[![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+## ✨ Features
 
-## 🚀 Features
+### 🔍 **Advanced Comparison Engine**
+- **Semantic Comparison**: Understands that `"true"` and `true` are equivalent
+- **Path-based Rules**: Ignore specific paths like `*.timestamp` or `database.*.password`
+- **Value Transformations**: Custom regex rules to normalize values before comparison
+- **Regex Pattern Matching**: Ignore keys matching patterns like `/^temp_/`
+- **Smart Severity Analysis**: Automatically categorizes changes as critical, major, minor, or cosmetic
 
-### 📁 **Multi-Format Support**
+### 🎨 **Multiple Diff Views**
+- **Tree View**: Hierarchical display of differences (default)
+- **Side-by-Side View**: Split screen showing both files with highlighted differences
+- **Unified Diff**: Git-style unified diff output with context lines
+- **Syntax Highlighting**: Color-coded based on file format
+- **Minimap**: Visual overview of where changes are located
+
+### 📊 **Smart Analysis**
+- **Impact Assessment**: Highlights critical vs. cosmetic changes
+- **Security Analysis**: Flags potential security implications
+- **Performance Impact**: Identifies changes that might affect performance
+- **Change Statistics**: Comprehensive metrics including similarity percentage
+
+### 🔧 **Supported Formats**
 - **JSON** - JavaScript Object Notation
-- **YAML** - YAML Ain't Markup Language  
-- **XML** - Extensible Markup Language
-- **INI** - Configuration files with sections
+- **YAML** - YAML Ain't Markup Language
+- **XML** - eXtensible Markup Language
+- **INI** - Configuration files
 - **TOML** - Tom's Obvious, Minimal Language
 - **ENV** - Environment variable files
-- **.config** - XML-based configuration files
+- **Config** - Generic configuration files
 
-### 🔍 **Advanced Diff Engine**
-- **Smart Detection** - Automatically detects file format
-- **Deep Comparison** - Handles nested objects and arrays
-- **Type-Aware** - Understands different data types
-- **Flexible Options** - Customize comparison behavior
+### 🌙 **Modern UI/UX**
+- **Dark Mode**: Beautiful dark theme as default with light mode toggle
+- **Responsive Design**: Works perfectly on desktop and mobile
+- **Accessibility**: WCAG compliant with keyboard navigation
+- **Theme Persistence**: Remembers your preferred theme
 
-### 🎨 **Professional UI**
-- **Drag & Drop** - Easy file upload
-- **Tree View** - Hierarchical diff visualization
-- **Flat View** - Linear diff display
-- **Color Coding** - Visual distinction for changes
-- **Responsive Design** - Works on all devices
+### 🔍 **Advanced Search & Filter**
+- **Search Within Diffs**: Find specific changes
+- **Filter by Change Type**: Show only additions/deletions/modifications
+- **Filter by Severity**: Focus on critical, major, minor, or cosmetic changes
+- **Filter by Category**: Security, performance, configuration, or structure changes
+- **Path Pattern Matching**: Filter by specific configuration paths
 
-### ⚙️ **Comparison Options**
-- **Ignore Keys** - Skip specific keys during comparison
-- **Case Sensitivity** - Control case-sensitive matching
-- **Key Sorting** - Sort keys before comparison
-- **Key Flattening** - Convert nested objects to dot notation
+### 📈 **Export & Integration**
+- **JSON Export**: Export comparison results and settings
+- **Unified Diff Export**: Generate patch files
+- **Statistics Export**: Detailed analysis metrics
+- **Shareable Results**: Export for team collaboration
 
-### 📊 **Export & Share**
-- **Markdown Export** - Generate readable reports
-- **JSON Export** - Machine-readable diff data
-- **Share Links** - Share comparison results
-- **Summary Statistics** - Quick overview of changes
+## 🚀 Quick Start
 
-## 🛠️ Installation
+1. **Upload Files**: Drag and drop or click to upload two configuration files
+2. **Configure Options**: Use the advanced options panel to customize comparison behavior
+3. **Compare**: Click the "Compare Files" button to analyze differences
+4. **Explore**: Use different view modes and filters to analyze results
+5. **Export**: Save results for documentation or sharing
 
-### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
+## 📋 Advanced Options
 
-### Development Setup
+### **Basic Options**
+- **Case Sensitive**: Consider case when comparing strings
+- **Sort Keys**: Sort object keys before comparison
+- **Flatten Keys**: Convert nested objects to dot notation
+- **Semantic Comparison**: Intelligent value equivalence
+- **Ignore Whitespace**: Ignore whitespace differences
+- **Ignore Comments**: Skip comment changes
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/eladser/SimpleConfigDiff.git
-   cd SimpleConfigDiff
-   ```
+### **Path Rules**
+Create custom rules to handle specific paths:
+- **Glob Patterns**: `*.timestamp`, `database.*.password`
+- **Regex Patterns**: `/^temp_/`, `/.*\.log$/`
+- **Exact Matches**: `config.debug`, `server.port`
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+### **Value Transformations**
+Transform values before comparison:
+- **URL Normalization**: Convert `https://` to `http://`
+- **Whitespace Cleanup**: Normalize multiple spaces
+- **Case Normalization**: Convert to lowercase
+- **Custom Regex**: Any regex pattern and replacement
 
-3. **Start development server**
-   ```bash
-   npm run dev
-   ```
+### **Display Options**
+- **Diff Mode**: Tree, Side-by-Side, or Unified
+- **Context Lines**: Number of context lines in unified diff
+- **Line Numbers**: Show/hide line numbers
+- **Minimap**: Visual overview of changes
 
-4. **Open in browser**
-   ```
-   http://localhost:3000
-   ```
+## 🔧 Technical Implementation
 
-### Production Build
+### **Core Technologies**
+- **React 18** with TypeScript for type safety
+- **Tailwind CSS** for styling with dark mode support
+- **Vite** for fast development and building
+- **Lucide Icons** for beautiful iconography
 
-```bash
-npm run build
-npm run preview
-```
+### **Advanced Features**
+- **Semantic Analysis**: Intelligent value comparison
+- **Performance Optimized**: Efficient diff algorithms
+- **Memory Efficient**: Handles large configuration files
+- **Error Handling**: Robust error reporting and recovery
 
-## 📖 Usage
+### **Comparison Algorithm**
+- **Multi-pass Analysis**: Structural, semantic, and value-level comparison
+- **Change Classification**: Automatic severity and category detection
+- **Path-aware Processing**: Respects configuration structure
+- **Transformation Pipeline**: Pre-processing with custom rules
 
-### Basic Usage
+## 📚 Use Cases
 
-1. **Upload Files** - Drag and drop or click to select two configuration files
-2. **Configure Options** - Set comparison preferences (optional)
-3. **Compare** - Click the "Compare Files" button
-4. **View Results** - Explore differences in tree or flat view
-5. **Export** - Download results as Markdown or JSON
+### **Development Teams**
+- Compare configuration files between environments
+- Review configuration changes in pull requests
+- Identify breaking changes in deployments
+- Validate configuration migrations
 
-### Example Files
+### **DevOps Engineers**
+- Compare Kubernetes manifests
+- Analyze Docker Compose changes
+- Review infrastructure configurations
+- Validate deployment configurations
 
-**config-a.json**
+### **Security Teams**
+- Identify security-sensitive configuration changes
+- Review access control modifications
+- Audit configuration compliance
+- Track security parameter changes
+
+### **System Administrators**
+- Compare server configurations
+- Analyze application settings
+- Review database configurations
+- Validate system updates
+
+## 🎯 Comparison Examples
+
+### **Semantic Comparison**
 ```json
+// File A
 {
-  "server": {
-    "port": 8080,
-    "ssl": false
-  },
-  "database": {
-    "host": "localhost",
-    "user": "admin"
-  }
+  "debug": "true",
+  "port": "8080",
+  "enabled": 1
+}
+
+// File B
+{
+  "debug": true,
+  "port": 8080,
+  "enabled": "yes"
 }
 ```
+With semantic comparison enabled, these files are considered equivalent!
 
-**config-b.yaml**
+### **Path Rules**
 ```yaml
-server:
-  port: 3000
-  ssl: true
-database:
-  host: "localhost"
-  user: "admin"
-  password: "secret"
+# Ignore all timestamp fields
+*.timestamp: ignore
+
+# Ignore all password fields
+*.password: ignore
+
+# Ignore temporary files
+/^temp_/: ignore
 ```
 
-**Result**
-```
-🟨 server.port: 8080 → 3000
-🟨 server.ssl: false → true
-🟩 database.password: "secret"
-```
+### **Value Transformations**
+```yaml
+# Normalize URLs
+https?:// → http://
 
-## 🔧 Configuration Options
+# Normalize whitespace
+\s+ → (single space)
 
-### Ignore Keys
-Skip specific keys during comparison:
-```javascript
-ignoreKeys: ['timestamp', 'version', 'lastModified']
+# Convert to lowercase
+[A-Z] → [a-z]
 ```
 
-### Case Sensitivity
-Control case-sensitive key matching:
-```javascript
-caseSensitive: false // 'Name' equals 'name'
+## 🔒 Security & Privacy
+
+- **Client-side Only**: All processing happens in your browser
+- **No Data Upload**: Files never leave your device
+- **No Tracking**: No analytics or user tracking
+- **Open Source**: Fully transparent and auditable code
+
+## 🚀 Performance
+
+- **Optimized Algorithms**: Efficient diff computation
+- **Memory Management**: Handles large files gracefully
+- **Responsive UI**: Smooth interactions even with complex diffs
+- **Progressive Loading**: Renders results as they're computed
+
+## 📱 Browser Support
+
+- **Chrome/Edge**: Full support
+- **Firefox**: Full support
+- **Safari**: Full support
+- **Mobile**: Responsive design works on all devices
+
+## 🛠️ Development
+
+### **Local Development**
+```bash
+npm install
+npm run dev
 ```
 
-### Key Sorting
-Sort keys alphabetically before comparison:
-```javascript
-sortKeys: true
+### **Build for Production**
+```bash
+npm run build
 ```
 
-### Key Flattening
-Convert nested objects to dot notation:
-```javascript
-flattenKeys: true
-// { "server": { "port": 8080 } } → { "server.port": 8080 }
+### **Type Checking**
+```bash
+npm run type-check
 ```
-
-## 🏗️ Architecture
-
-### Project Structure
-```
-SimpleConfigDiff/
-├── src/
-│   ├── components/          # React components
-│   │   ├── DiffViewer.tsx   # Main diff display
-│   │   ├── FileUpload.tsx   # File upload interface
-│   │   ├── OptionsPanel.tsx # Comparison options
-│   │   └── ...
-│   ├── utils/               # Utility functions
-│   │   ├── parsers.ts       # File format parsers
-│   │   ├── generateDiff.ts  # Diff generation
-│   │   └── ...
-│   ├── types/               # TypeScript definitions
-│   └── App.tsx             # Main application
-├── public/                  # Static assets
-└── dist/                   # Build output
-```
-
-### Technology Stack
-
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Frontend** | React 18 | UI framework |
-| **Language** | TypeScript | Type safety |
-| **Build Tool** | Vite | Fast development |
-| **Styling** | TailwindCSS | Utility-first CSS |
-| **Icons** | Lucide React | Icon library |
-| **Parsing** | Multiple libs | Format-specific parsers |
-
-### Parser Libraries
-
-| Format | Library | Features |
-|--------|---------|-----------|
-| JSON | Native | Built-in support |
-| YAML | js-yaml | Full YAML 1.2 support |
-| XML | fast-xml-parser | Attributes, namespaces |
-| INI | ini | Sections, type conversion |
-| TOML | @iarna/toml | Spec-compliant |
-| ENV | Custom | Comments, type inference |
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
+Contributions are welcome! Please read our contributing guidelines and submit pull requests for any improvements.
 
-1. **Fork the repository**
-2. **Create a feature branch**
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. **Commit your changes**
-   ```bash
-   git commit -m 'Add amazing feature'
-   ```
-4. **Push to branch**
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-5. **Open a Pull Request**
+## 📄 License
 
-### Development Guidelines
+This project is open source and available under the [MIT License](LICENSE).
 
-- Follow TypeScript best practices
-- Use meaningful component names
-- Write descriptive commit messages
-- Add tests for new features
-- Update documentation as needed
+## 🌟 Star History
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [React](https://reactjs.org/) - The web framework
-- [Vite](https://vitejs.dev/) - Build tool
-- [TailwindCSS](https://tailwindcss.com/) - CSS framework
-- [js-yaml](https://github.com/nodeca/js-yaml) - YAML parser
-- [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) - XML parser
-- [Lucide](https://lucide.dev/) - Icons
-
-## 📞 Support
-
-If you have questions or need help:
-
-1. **Check the documentation** in this README
-2. **Search existing issues** on GitHub
-3. **Create a new issue** if needed
-4. **Join discussions** in the repository
+If you find this tool useful, please consider giving it a star on GitHub!
 
 ---
 
-<div align="center">
-  <strong>Made with ❤️ by eladser</strong>
-</div>
+**Built with ❤️ for developers, by developers**
