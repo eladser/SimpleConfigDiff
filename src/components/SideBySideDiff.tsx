@@ -58,8 +58,8 @@ export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySid
     });
   }, [result.changes, searchFilters]);
 
-  const leftLines = useMemo(() => generateLines(result.leftFile.content, filteredChanges, 'left'), [result.leftFile.content, filteredChanges]);
-  const rightLines = useMemo(() => generateLines(result.rightFile.content, filteredChanges, 'right'), [result.rightFile.content, filteredChanges]);
+  const leftLines = useMemo(() => generateLines(filteredChanges, 'left'), [filteredChanges]);
+  const rightLines = useMemo(() => generateLines(filteredChanges, 'right'), [filteredChanges]);
 
   const toggleSection = (path: string) => {
     const newExpanded = new Set(expandedSections);
@@ -316,7 +316,7 @@ function DiffLineComponent({ line, settings, getSeverityColor, getCategoryIcon, 
   );
 }
 
-function generateLines(content: string, changes: DiffChange[], side: 'left' | 'right'): DiffLine[] {
+function generateLines(changes: DiffChange[], side: 'left' | 'right'): DiffLine[] {
   const lines: DiffLine[] = [];
   let lineNumber = 1;
   
