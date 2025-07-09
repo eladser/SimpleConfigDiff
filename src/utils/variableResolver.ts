@@ -71,7 +71,7 @@ export class VariableResolver {
       // $VAR (word boundary)
       /\$(\w+)/g,
       // #{VAR} (alternative syntax)
-      /#\{([^}]+)\}/g,
+      /#{([^}]+)}/g,
       // {{VAR}} (template syntax)
       /\{\{([^}]+)\}\}/g
     ];
@@ -216,9 +216,14 @@ export class VariableResolver {
       return (window as any).ENV_VARS?.[name];
     }
     
-    // Node.js environment
-    if (typeof global !== 'undefined' && (global as any).process?.env) {
-      return (global as any).process.env[name];
+    // Node.js environment - use globalThis for better compatibility
+    if (typeof globalThis !== 'undefined' && (globalThis as any).process?.env) {
+      return (globalThis as any).process.env[name];
+    }
+    
+    // Fallback: try to access process directly if available
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[name];
     }
     
     return undefined;
@@ -315,7 +320,7 @@ export function extractVariables(content: string): string[] {
   const patterns = [
     /\$\{([^}:]+)/g,  // ${VAR} or ${VAR:-default}
     /\$(\w+)/g,       // $VAR
-    /#\{([^}]+)\}/g,  // #{VAR}
+    /#{([^}]+)}/g,  // #{VAR}
     /\{\{([^}]+)\}\}/g // {{VAR}}
   ];
 
@@ -466,7 +471,7 @@ export function detectEnvironmentVariables(content: string): {
   const syntaxPatterns = [
     { name: 'bash', regex: /\$\{([^}]+)\}/g, description: 'Bash-style ${VAR}' },
     { name: 'simple', regex: /\$(\w+)/g, description: 'Simple $VAR' },
-    { name: 'hash', regex: /#\{([^}]+)\}/g, description: 'Hash-style #{VAR}' },
+    { name: 'hash', regex: /#{([^}]+)}/g, description: 'Hash-style #{VAR}' },
     { name: 'template', regex: /\{\{([^}]+)\}\}/g, description: 'Template-style {{VAR}}' }
   ];
 
@@ -508,7 +513,7 @@ export function suggestVariableNames(content: string): string[] {
   // Common patterns that might be variables
   const commonPatterns = [
     /([A-Z_][A-Z0-9_]*)/g,  // UPPERCASE_NAMES
-    /(['"])(.*?)\1/g,        // Quoted strings
+    /(['"'])(.*?)\1/g,        // Quoted strings
     /(\w+):\s*['"]([^'"]+)['"]/g  // Key-value pairs
   ];
 
