@@ -1,4 +1,6 @@
-import { DiffChange, DiffOptions, ComparisonResult, ConfigFile } from '@/types';
+import { DiffChange, DiffOptions, ComparisonResult, ConfigFile, DiffStats } from '@/types';
+import { SemanticComparator, PathMatcher, ValueTransformer, DiffSeverityAnalyzer, DiffStatistics } from './advancedComparison';
+import { generateUnifiedDiff } from './unifiedDiff';
 
 // Simple diff implementation to avoid deep-diff dependency issues
 interface SimpleDiff {
@@ -10,81 +12,124 @@ interface SimpleDiff {
   item?: SimpleDiff;
 }
 
-function simpleDiff(left: any, right: any, path: string[] = []): SimpleDiff[] {
-  const diffs: SimpleDiff[] = [];
-  
-  if (left === right) {
-    return diffs;
+class AdvancedDiffGenerator {
+  private semanticComparator: SemanticComparator;
+  private options: DiffOptions;
+
+  constructor(options: DiffOptions) {
+    this.options = options;
+    this.semanticComparator = new SemanticComparator(options);
   }
-  
-  // Handle primitive values
-  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) {
-    if (left === undefined) {
-      diffs.push({ kind: 'N', path, rhs: right });
-    } else if (right === undefined) {
-      diffs.push({ kind: 'D', path, lhs: left });
-    } else {
-      diffs.push({ kind: 'E', path, lhs: left, rhs: right });
-    }
-    return diffs;
-  }
-  
-  // Handle arrays
-  if (Array.isArray(left) || Array.isArray(right)) {
-    const leftArray = Array.isArray(left) ? left : [];
-    const rightArray = Array.isArray(right) ? right : [];
-    const maxLength = Math.max(leftArray.length, rightArray.length);
+
+  simpleDiff(left: any, right: any, path: string[] = []): SimpleDiff[] {
+    const diffs: SimpleDiff[] = [];
     
-    for (let i = 0; i < maxLength; i++) {
-      const leftItem = leftArray[i];
-      const rightItem = rightArray[i];
+    // Check if path should be ignored
+    const currentPath = path.join('.');
+    if (this.shouldIgnorePath(currentPath)) {
+      return diffs;
+    }
+    
+    // Apply value transformations
+    const transformedLeft = this.applyTransformations(left, currentPath);
+    const transformedRight = this.applyTransformations(right, currentPath);
+    
+    // Use semantic comparison if enabled
+    if (this.options.semanticComparison && this.semanticComparator.semanticEquals(transformedLeft, transformedRight)) {
+      return diffs;
+    }
+    
+    // Regular equality check
+    if (transformedLeft === transformedRight) {
+      return diffs;
+    }
+    
+    // Handle primitive values
+    if (typeof transformedLeft !== 'object' || typeof transformedRight !== 'object' || 
+        transformedLeft === null || transformedRight === null) {
+      if (transformedLeft === undefined) {
+        diffs.push({ kind: 'N', path, rhs: transformedRight });
+      } else if (transformedRight === undefined) {
+        diffs.push({ kind: 'D', path, lhs: transformedLeft });
+      } else {
+        diffs.push({ kind: 'E', path, lhs: transformedLeft, rhs: transformedRight });
+      }
+      return diffs;
+    }
+    
+    // Handle arrays
+    if (Array.isArray(transformedLeft) || Array.isArray(transformedRight)) {
+      const leftArray = Array.isArray(transformedLeft) ? transformedLeft : [];
+      const rightArray = Array.isArray(transformedRight) ? transformedRight : [];
+      const maxLength = Math.max(leftArray.length, rightArray.length);
       
-      if (leftItem === undefined) {
-        diffs.push({
-          kind: 'A',
-          path,
-          index: i,
-          item: { kind: 'N', rhs: rightItem }
-        });
-      } else if (rightItem === undefined) {
-        diffs.push({
-          kind: 'A',
-          path,
-          index: i,
-          item: { kind: 'D', lhs: leftItem }
-        });
-      } else if (leftItem !== rightItem) {
-        diffs.push({
-          kind: 'A',
-          path,
-          index: i,
-          item: { kind: 'E', lhs: leftItem, rhs: rightItem }
-        });
+      for (let i = 0; i < maxLength; i++) {
+        const leftItem = leftArray[i];
+        const rightItem = rightArray[i];
+        
+        if (leftItem === undefined) {
+          diffs.push({
+            kind: 'A',
+            path,
+            index: i,
+            item: { kind: 'N', rhs: rightItem }
+          });
+        } else if (rightItem === undefined) {
+          diffs.push({
+            kind: 'A',
+            path,
+            index: i,
+            item: { kind: 'D', lhs: leftItem }
+          });
+        } else {
+          const subDiffs = this.simpleDiff(leftItem, rightItem, [...path, i.toString()]);
+          if (subDiffs.length > 0) {
+            diffs.push({
+              kind: 'A',
+              path,
+              index: i,
+              item: { kind: 'E', lhs: leftItem, rhs: rightItem }
+            });
+          }
+        }
+      }
+      return diffs;
+    }
+    
+    // Handle objects
+    const leftKeys = Object.keys(transformedLeft);
+    const rightKeys = Object.keys(transformedRight);
+    const allKeys = new Set([...leftKeys, ...rightKeys]);
+    
+    for (const key of allKeys) {
+      const leftValue = transformedLeft[key];
+      const rightValue = transformedRight[key];
+      
+      if (!(key in transformedLeft)) {
+        diffs.push({ kind: 'N', path: [...path, key], rhs: rightValue });
+      } else if (!(key in transformedRight)) {
+        diffs.push({ kind: 'D', path: [...path, key], lhs: leftValue });
+      } else {
+        const subDiffs = this.simpleDiff(leftValue, rightValue, [...path, key]);
+        diffs.push(...subDiffs);
       }
     }
+    
     return diffs;
   }
-  
-  // Handle objects
-  const leftKeys = Object.keys(left);
-  const rightKeys = Object.keys(right);
-  const allKeys = new Set([...leftKeys, ...rightKeys]);
-  
-  for (const key of allKeys) {
-    const leftValue = left[key];
-    const rightValue = right[key];
-    
-    if (!(key in left)) {
-      diffs.push({ kind: 'N', path: [...path, key], rhs: rightValue });
-    } else if (!(key in right)) {
-      diffs.push({ kind: 'D', path: [...path, key], lhs: leftValue });
-    } else {
-      const subDiffs = simpleDiff(leftValue, rightValue, [...path, key]);
-      diffs.push(...subDiffs);
+
+  private shouldIgnorePath(path: string): boolean {
+    for (const rule of this.options.pathRules) {
+      if (rule.action === 'ignore' && PathMatcher.matches(path, rule)) {
+        return true;
+      }
     }
+    return false;
   }
-  
-  return diffs;
+
+  private applyTransformations(value: any, path: string): any {
+    return ValueTransformer.transform(value, this.options.valueTransformations);
+  }
 }
 
 export function flattenObject(obj: any, prefix = ''): Record<string, any> {
@@ -184,80 +229,111 @@ export function formatValue(value: any): string {
 }
 
 export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, options: DiffOptions): ComparisonResult {
+  const startTime = performance.now();
+  
+  // Set default values for new options
+  const enhancedOptions: DiffOptions = {
+    ...options,
+    semanticComparison: options.semanticComparison ?? false,
+    ignoreWhitespace: options.ignoreWhitespace ?? false,
+    ignoreComments: options.ignoreComments ?? false,
+    pathRules: options.pathRules ?? [],
+    valueTransformations: options.valueTransformations ?? [],
+    diffMode: options.diffMode ?? 'tree',
+    showLineNumbers: options.showLineNumbers ?? true,
+    contextLines: options.contextLines ?? 3,
+    minimalDiff: options.minimalDiff ?? false
+  };
+  
   // Process both objects according to options
-  const leftData = processObject(leftFile.parsedContent, options);
-  const rightData = processObject(rightFile.parsedContent, options);
+  const leftData = processObject(leftFile.parsedContent, enhancedOptions);
+  const rightData = processObject(rightFile.parsedContent, enhancedOptions);
   
   // Flatten if requested
-  const leftProcessed = options.flattenKeys ? flattenObject(leftData) : leftData;
-  const rightProcessed = options.flattenKeys ? flattenObject(rightData) : rightData;
+  const leftProcessed = enhancedOptions.flattenKeys ? flattenObject(leftData) : leftData;
+  const rightProcessed = enhancedOptions.flattenKeys ? flattenObject(rightData) : rightData;
   
-  // Generate diff using simple diff
-  const differences = simpleDiff(leftProcessed, rightProcessed);
+  // Generate diff using advanced diff generator
+  const diffGenerator = new AdvancedDiffGenerator(enhancedOptions);
+  const differences = diffGenerator.simpleDiff(leftProcessed, rightProcessed);
   
   const changes: DiffChange[] = [];
   
   differences.forEach((diff: SimpleDiff) => {
     const path = Array.isArray(diff.path) ? diff.path.join('.') : String(diff.path || '');
+    let change: DiffChange;
     
     switch (diff.kind) {
       case 'N': // New
-        changes.push({
+        change = {
           path,
           type: 'added',
           newValue: diff.rhs,
           newType: getValueType(diff.rhs)
-        });
+        };
         break;
         
       case 'D': // Deleted
-        changes.push({
+        change = {
           path,
           type: 'removed',
           oldValue: diff.lhs,
           oldType: getValueType(diff.lhs)
-        });
+        };
         break;
         
       case 'E': // Edited
-        changes.push({
+        change = {
           path,
           type: 'changed',
           oldValue: diff.lhs,
           newValue: diff.rhs,
           oldType: getValueType(diff.lhs),
           newType: getValueType(diff.rhs)
-        });
+        };
         break;
         
       case 'A': // Array change
         const arrayPath = path + `[${diff.index}]`;
         if (diff.item?.kind === 'N') {
-          changes.push({
+          change = {
             path: arrayPath,
             type: 'added',
             newValue: diff.item.rhs,
             newType: getValueType(diff.item.rhs)
-          });
+          };
         } else if (diff.item?.kind === 'D') {
-          changes.push({
+          change = {
             path: arrayPath,
             type: 'removed',
             oldValue: diff.item.lhs,
             oldType: getValueType(diff.item.lhs)
-          });
+          };
         } else if (diff.item?.kind === 'E') {
-          changes.push({
+          change = {
             path: arrayPath,
             type: 'changed',
             oldValue: diff.item.lhs,
             newValue: diff.item.rhs,
             oldType: getValueType(diff.item.lhs),
             newType: getValueType(diff.item.rhs)
-          });
+          };
+        } else {
+          return; // Skip invalid array changes
         }
         break;
+        
+      default:
+        return; // Skip unknown diff types
     }
+    
+    // Add severity analysis
+    change.severity = DiffSeverityAnalyzer.analyzeSeverity(change);
+    
+    // Add category based on path
+    change.category = this.categorizeChange(change.path);
+    
+    changes.push(change);
   });
   
   // Calculate summary
@@ -268,10 +344,48 @@ export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, option
     total: changes.length
   };
   
-  return {
+  // Calculate statistics
+  const stats = DiffStatistics.calculate(changes, leftFile.content, rightFile.content);
+  
+  // Generate unified diff if requested
+  const result: ComparisonResult = {
     changes: changes.sort((a, b) => a.path.localeCompare(b.path)),
     summary,
     leftFile,
-    rightFile
+    rightFile,
+    stats,
+    metadata: {
+      comparisonTime: performance.now() - startTime,
+      algorithm: 'advanced-semantic',
+      options: enhancedOptions
+    }
   };
+  
+  // Generate unified diff if in unified mode
+  if (enhancedOptions.diffMode === 'unified') {
+    result.unifiedDiff = generateUnifiedDiff(result, {
+      contextLines: enhancedOptions.contextLines,
+      showLineNumbers: enhancedOptions.showLineNumbers
+    });
+  }
+  
+  return result;
+}
+
+function categorizeChange(path: string): 'security' | 'performance' | 'configuration' | 'structure' {
+  const lowerPath = path.toLowerCase();
+  
+  if (/password|secret|token|key|credential|auth|ssl|tls|cert/.test(lowerPath)) {
+    return 'security';
+  }
+  
+  if (/cache|timeout|pool|connection|thread|memory|cpu|limit|throttle|rate/.test(lowerPath)) {
+    return 'performance';
+  }
+  
+  if (/config|setting|option|preference|param/.test(lowerPath)) {
+    return 'configuration';
+  }
+  
+  return 'structure';
 }
