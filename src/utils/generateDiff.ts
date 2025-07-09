@@ -1,6 +1,7 @@
 import { DiffChange, DiffOptions, ComparisonResult, ConfigFile } from '@/types';
 import { SemanticComparator, PathMatcher, ValueTransformer, DiffSeverityAnalyzer, DiffStatistics } from './advancedComparison';
 import { generateUnifiedDiff } from './unifiedDiff';
+import { compareCSVData } from './parseCSV';
 
 // Simple diff implementation to avoid deep-diff dependency issues
 interface SimpleDiff {
@@ -246,7 +247,52 @@ function categorizeChange(path: string): 'security' | 'performance' | 'configura
   return 'structure';
 }
 
+// CSV-specific diff generation
+function generateCSVDiff(leftFile: ConfigFile, rightFile: ConfigFile, options: DiffOptions): ComparisonResult {
+  const startTime = performance.now();
+  
+  // Use CSV-specific comparison
+  const csvComparison = compareCSVData(leftFile.parsedContent, rightFile.parsedContent);
+  
+  // Convert CSV changes to standard DiffChange format
+  const changes: DiffChange[] = csvComparison.changes.map(change => ({
+    ...change,
+    severity: DiffSeverityAnalyzer.analyzeSeverity(change),
+    category: categorizeChange(change.path)
+  }));
+  
+  // Calculate summary
+  const summary = {
+    added: changes.filter(c => c.type === 'added').length,
+    removed: changes.filter(c => c.type === 'removed').length,
+    changed: changes.filter(c => c.type === 'changed').length,
+    total: changes.length
+  };
+  
+  // Calculate statistics with CSV-specific stats
+  const stats = DiffStatistics.calculate(changes, leftFile.content, rightFile.content);
+  stats.csvStats = csvComparison.stats;
+  
+  return {
+    changes: changes.sort((a, b) => a.path.localeCompare(b.path)),
+    summary,
+    leftFile,
+    rightFile,
+    stats,
+    metadata: {
+      comparisonTime: performance.now() - startTime,
+      algorithm: 'csv-column-aware',
+      options
+    }
+  };
+}
+
 export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, options: DiffOptions): ComparisonResult {
+  // Handle CSV files with column-aware diffing
+  if (leftFile.format === 'csv' && rightFile.format === 'csv') {
+    return generateCSVDiff(leftFile, rightFile, options);
+  }
+  
   const startTime = performance.now();
   
   // Set default values for new options
