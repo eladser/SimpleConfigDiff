@@ -7,6 +7,7 @@ import { parseTOML } from './parseTOML';
 import { parseENV } from './parseENV';
 import { parseHCL } from './parseHCL';
 import { parseProperties } from './parseProperties';
+import { parseCSV } from './parseCSV';
 
 export function detectFormat(filename: string, content: string): ConfigFormat {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -31,6 +32,8 @@ export function detectFormat(filename: string, content: string): ConfigFormat {
       return 'hcl';
     case 'properties':
       return 'properties';
+    case 'csv':
+      return 'csv';
     case 'config':
     case 'conf':
       return 'config';
@@ -56,6 +59,26 @@ function detectFormatByContent(content: string): ConfigFormat {
   // XML detection
   if (trimmed.startsWith('<') && trimmed.includes('>')) {
     return 'xml';
+  }
+  
+  // CSV detection (simple heuristic)
+  const lines = trimmed.split('\n');
+  if (lines.length > 1) {
+    const firstLine = lines[0];
+    const delimiters = [',', ';', '\t', '|'];
+    
+    for (const delimiter of delimiters) {
+      if (firstLine.includes(delimiter)) {
+        // Check if multiple lines have the same delimiter pattern
+        const firstCount = firstLine.split(delimiter).length;
+        const consistentLines = lines.slice(1, Math.min(5, lines.length))
+          .filter(line => Math.abs(line.split(delimiter).length - firstCount) <= 1);
+        
+        if (consistentLines.length >= Math.min(2, lines.length - 1)) {
+          return 'csv';
+        }
+      }
+    }
   }
   
   // YAML detection (common patterns)
@@ -116,6 +139,8 @@ export function parseConfig(content: string, format: ConfigFormat): ParsedConfig
       return parseHCL(content);
     case 'properties':
       return parseProperties(content);
+    case 'csv':
+      return parseCSV(content);
     case 'config':
       return parseINI(content); // Default to INI for generic config files
     default:
@@ -136,7 +161,8 @@ export const formatNames: Record<ConfigFormat, string> = {
   toml: 'TOML',
   env: 'Environment',
   hcl: 'HCL/Terraform',
-  properties: 'Properties'
+  properties: 'Properties',
+  csv: 'CSV'
 };
 
 export const formatExtensions: Record<ConfigFormat, string> = {
@@ -148,7 +174,8 @@ export const formatExtensions: Record<ConfigFormat, string> = {
   toml: '.toml',
   env: '.env',
   hcl: '.hcl/.tf',
-  properties: '.properties'
+  properties: '.properties',
+  csv: '.csv'
 };
 
 export function getFormatDescription(format: ConfigFormat): string {
@@ -161,7 +188,8 @@ export function getFormatDescription(format: ConfigFormat): string {
     toml: 'Tom\'s Obvious, Minimal Language',
     env: 'Environment Variables',
     hcl: 'HashiCorp Configuration Language',
-    properties: 'Java Properties File'
+    properties: 'Java Properties File',
+    csv: 'Comma-Separated Values'
   };
   
   return descriptions[format] || 'Unknown format';
@@ -182,7 +210,8 @@ export function getFormatIcon(format: ConfigFormat): string {
     toml: '🔧',
     env: '🌍',
     hcl: '🏗️',
-    properties: '☕'
+    properties: '☕',
+    csv: '📊'
   };
   
   return icons[format] || '📄';
@@ -198,6 +227,7 @@ export function getSupportedExtensions(): string[] {
     '.env',
     '.hcl', '.tf',
     '.properties',
+    '.csv',
     '.config', '.conf'
   ];
 }
