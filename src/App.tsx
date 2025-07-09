@@ -10,6 +10,7 @@ import { FileUploadState, DiffOptions, ComparisonResult, DiffViewSettings } from
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
+import { downloadExcel } from '@/utils/exportExcel';
 import { RefreshCw, Download, BarChart3, Layers, SplitSquareHorizontal, ChevronDown, Files, Folder } from 'lucide-react';
 
 interface DirectoryFile {
@@ -256,7 +257,7 @@ function App() {
     setError(null);
   }, []);
 
-  const handleExport = useCallback(async (format: 'json' | 'csv' | 'html' | 'patch' | 'pdf') => {
+  const handleExport = useCallback(async (format: 'json' | 'csv' | 'html' | 'patch' | 'pdf' | 'xlsx') => {
     if (!comparisonResult) return;
     
     const exportOptions = {
@@ -265,15 +266,17 @@ function App() {
       includeContext: true
     };
     
-    if (format === 'pdf') {
-      try {
+    try {
+      if (format === 'pdf') {
         await downloadPDFDiff(comparisonResult, options, exportOptions);
-      } catch (error) {
-        console.error('PDF export failed:', error);
-        setError('PDF export failed. Please try again.');
+      } else if (format === 'xlsx') {
+        downloadExcel(comparisonResult, options, exportOptions);
+      } else {
+        downloadDiff(comparisonResult, options, format, exportOptions);
       }
-    } else {
-      downloadDiff(comparisonResult, options, format, exportOptions);
+    } catch (error) {
+      console.error(`${format.toUpperCase()} export failed:`, error);
+      setError(`${format.toUpperCase()} export failed. Please try again.`);
     }
     
     setShowExportMenu(false);
@@ -432,31 +435,38 @@ function App() {
                         onClick={() => handleExport('json')}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        JSON Report
+                        📄 JSON Report
                       </button>
                       <button
                         onClick={() => handleExport('csv')}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        CSV Export
+                        📊 CSV Export
                       </button>
                       <button
                         onClick={() => handleExport('html')}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        HTML Report
+                        🌐 HTML Report
                       </button>
                       <button
                         onClick={() => handleExport('patch')}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        Patch File
+                        📝 Patch File
                       </button>
+                      <div className="border-t border-gray-200 dark:border-gray-600 my-1"></div>
                       <button
                         onClick={() => handleExport('pdf')}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-600"
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         📄 PDF Report
+                      </button>
+                      <button
+                        onClick={() => handleExport('xlsx')}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        📊 Excel Export
                       </button>
                     </div>
                   </div>
