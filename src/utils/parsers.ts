@@ -166,3 +166,38 @@ export function getFormatDescription(format: ConfigFormat): string {
   
   return descriptions[format] || 'Unknown format';
 }
+
+// Add missing exports that are being used in components
+export function getFormatLabel(format: ConfigFormat): string {
+  return formatNames[format] || format.toUpperCase();
+}
+
+export function getFormatIcon(format: ConfigFormat): string {
+  const icons: Record<ConfigFormat, string> = {
+    json: '{}',
+    yaml: '📄',
+    xml: '</>',
+    config: '⚙️',
+    ini: '📝',
+    toml: '🔧',
+    env: '🌍',
+    hcl: '🏗️',
+    properties: '☕'
+  };
+  
+  return icons[format] || '📄';
+}
+
+export function getSupportedExtensions(): string[] {
+  return [
+    '.json',
+    '.yaml', '.yml',
+    '.xml',
+    '.ini',
+    '.toml',
+    '.env',
+    '.hcl', '.tf',
+    '.properties',
+    '.config', '.conf'
+  ];
+}
