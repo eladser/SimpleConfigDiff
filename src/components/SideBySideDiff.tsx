@@ -1,11 +1,9 @@
 import { useState, useMemo } from 'react';
-import { ComparisonResult, DiffViewSettings } from '@/types';
+import { ComparisonResult } from '@/types';
 import { Search, ChevronRight, ChevronDown, Plus, Minus, Edit3, Eye, EyeOff } from 'lucide-react';
 
 interface SideBySideDiffProps {
   result: ComparisonResult;
-  settings: DiffViewSettings;
-  onSettingsChange: (settings: DiffViewSettings) => void;
 }
 
 interface DiffEntry {
@@ -17,7 +15,7 @@ interface DiffEntry {
   rightLine?: number;
 }
 
-export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySideDiffProps) {
+export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(true);
