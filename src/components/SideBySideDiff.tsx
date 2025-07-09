@@ -316,7 +316,7 @@ function DiffLineComponent({ line, settings, getSeverityColor, getCategoryIcon, 
   );
 }
 
-function generateLines(fileContent: string, changes: DiffChange[], side: 'left' | 'right'): DiffLine[] {
+function generateLines(content: string, changes: DiffChange[], side: 'left' | 'right'): DiffLine[] {
   const lines: DiffLine[] = [];
   let lineNumber = 1;
   
