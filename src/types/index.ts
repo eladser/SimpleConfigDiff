@@ -1,4 +1,4 @@
-export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config' | 'hcl' | 'properties';
+export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config' | 'hcl' | 'properties' | 'csv';
 
 export interface ConfigFile {
   name: string;
@@ -21,6 +21,9 @@ export interface DiffChange {
     left?: number;
     right?: number;
   };
+  // CSV-specific fields
+  csvColumn?: string;
+  csvRow?: number;
 }
 
 export interface PathRule {
@@ -53,6 +56,14 @@ export interface DiffOptions {
   showLineNumbers: boolean;
   contextLines: number;
   minimalDiff: boolean;
+  // CSV-specific options
+  csvOptions?: {
+    delimiter: string;
+    headerRow: boolean;
+    keyColumn?: string;
+    ignoreColumns?: string[];
+    compareMode: 'row-by-row' | 'column-aware' | 'value-based';
+  };
 }
 
 export interface DiffStats {
@@ -62,6 +73,15 @@ export interface DiffStats {
   filesCompared: number;
   totalCharacters: number;
   similarities: number; // percentage
+  // CSV-specific stats
+  csvStats?: {
+    rowsAdded: number;
+    rowsRemoved: number;
+    rowsChanged: number;
+    columnsAdded: number;
+    columnsRemoved: number;
+    columnsChanged: number;
+  };
 }
 
 export interface ParsedConfig {
@@ -69,6 +89,13 @@ export interface ParsedConfig {
   format: ConfigFormat;
   error?: string;
   lineMap?: Map<string, number>; // path -> line number mapping
+  // CSV-specific metadata
+  csvMetadata?: {
+    headers: string[];
+    rowCount: number;
+    delimiter: string;
+    hasHeader: boolean;
+  };
 }
 
 export interface ComparisonResult {
