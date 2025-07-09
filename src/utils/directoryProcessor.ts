@@ -38,7 +38,7 @@ export class DirectoryProcessor {
 
   // Simulate recursive directory reading (in browser environment)
   processFileList(files: FileList): Promise<BatchFile[]> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const batchFiles: BatchFile[] = [];
       const fileArray = Array.from(files);
       let processed = 0;
@@ -48,7 +48,7 @@ export class DirectoryProcessor {
         return;
       }
 
-      fileArray.forEach((file, index) => {
+      fileArray.forEach((file) => {
         // Check if file should be included
         if (!this.shouldIncludeFile(file.name, file.size)) {
           processed++;
@@ -110,8 +110,8 @@ export class DirectoryProcessor {
 
     // Check ignore patterns
     if (this.options.ignorePatterns) {
-      for (const pattern of this.options.ignorePatterns) {
-        if (filename.includes(pattern)) {
+      for (const ignorePattern of this.options.ignorePatterns) {
+        if (filename.includes(ignorePattern)) {
           return false;
         }
       }
@@ -120,8 +120,8 @@ export class DirectoryProcessor {
     // Check include patterns
     if (this.options.includePatterns && this.options.includePatterns.length > 0) {
       let matches = false;
-      for (const pattern of this.options.includePatterns) {
-        if (filename.includes(pattern)) {
+      for (const includePattern of this.options.includePatterns) {
+        if (filename.includes(includePattern)) {
           matches = true;
           break;
         }
@@ -193,18 +193,18 @@ export class DirectoryProcessor {
     const patterns = new Map<string, BatchFile[]>();
     
     for (const file of files) {
-      const pattern = this.extractFilePattern(file.name);
-      if (!patterns.has(pattern)) {
-        patterns.set(pattern, []);
+      const filePattern = this.extractFilePattern(file.name);
+      if (!patterns.has(filePattern)) {
+        patterns.set(filePattern, []);
       }
-      patterns.get(pattern)!.push(file);
+      patterns.get(filePattern)!.push(file);
     }
     
     return Array.from(patterns.entries())
-      .map(([pattern, matchedFiles]) => ({
-        pattern,
+      .map(([filePattern, matchedFiles]) => ({
+        pattern: filePattern,
         files: matchedFiles,
-        confidence: this.calculatePatternConfidence(pattern, matchedFiles)
+        confidence: this.calculatePatternConfidence(filePattern, matchedFiles)
       }))
       .filter(group => group.files.length > 1)
       .sort((a, b) => b.confidence - a.confidence);
@@ -212,7 +212,7 @@ export class DirectoryProcessor {
 
   private extractFilePattern(filename: string): string {
     // Remove common versioning patterns
-    let pattern = filename
+    let filePattern = filename
       .replace(/[-_]v?\d+(\.\d+)*/, '') // version numbers
       .replace(/[-_]\d{4}-\d{2}-\d{2}/, '') // dates
       .replace(/[-_]\d{8}/, '') // date stamps
@@ -220,10 +220,10 @@ export class DirectoryProcessor {
       .replace(/[-_](prod|dev|test|staging)/, '') // environment suffixes
       .replace(/\.[^.]+$/, ''); // extension
     
-    return pattern;
+    return filePattern;
   }
 
-  private calculatePatternConfidence(pattern: string, files: BatchFile[]): number {
+  private calculatePatternConfidence(filePattern: string, files: BatchFile[]): number {
     if (files.length < 2) return 0;
     
     let confidence = 0;
@@ -266,10 +266,10 @@ export class DirectoryProcessor {
       /\d{8}/ // timestamps
     ];
     
-    for (const pattern of patterns) {
+    for (const patternRegex of patterns) {
       let matches = 0;
       for (const name of names) {
-        if (pattern.test(name)) {
+        if (patternRegex.test(name)) {
           matches++;
         }
       }
@@ -470,8 +470,8 @@ export class DirectoryProcessor {
 
 // Utility functions
 export function createIgnorePattern(patterns: string[]): RegExp {
-  const escapedPatterns = patterns.map(pattern => 
-    pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escapedPatterns = patterns.map(patternStr => 
+    patternStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
            .replace(/\\\*/g, '.*')
            .replace(/\\\?/g, '.')
   );
