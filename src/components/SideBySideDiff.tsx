@@ -75,7 +75,7 @@ export function SideBySideDiff({ result }: SideBySideDiffProps) {
   const formatValue = (value: any) => {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
-    if (typeof value === 'string') return `"${value}";
+    if (typeof value === 'string') return `"${value}"`;
     if (typeof value === 'object') {
       try {
         return JSON.stringify(value, null, 2);
