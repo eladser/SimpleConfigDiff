@@ -90,11 +90,11 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
   const getChangeClass = (type: DiffChange['type']) => {
     switch (type) {
       case 'added':
-        return 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500';
+        return 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 dark:border-emerald-400';
       case 'removed':
-        return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500';
+        return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400';
       case 'changed':
-        return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500';
+        return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400';
       default:
         return '';
     }
@@ -115,7 +115,7 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
           {hasChildren && (
             <button
               onClick={() => toggleNode(node.path)}
-              className="flex items-center justify-center w-4 h-4 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+              className="flex items-center justify-center w-4 h-4 hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-colors"
             >
               {isExpanded ? (
                 <ChevronDown className="w-3 h-3 text-slate-600 dark:text-slate-300" />
@@ -129,9 +129,9 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
           
           {node.isFolder ? (
             isExpanded ? (
-              <FolderOpen className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              <FolderOpen className="w-4 h-4 text-amber-500 dark:text-amber-400" />
             ) : (
-              <Folder className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              <Folder className="w-4 h-4 text-amber-500 dark:text-amber-400" />
             )
           ) : (
             node.change && getChangeIcon(node.change.type)
@@ -145,24 +145,24 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
             <div className="flex items-center gap-2 ml-auto">
               {node.change.type === 'changed' && (
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="text-red-600 dark:text-red-400 font-mono">
+                  <span className="text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
                     {formatValue(node.change.oldValue)}
                   </span>
                   <span className="text-slate-400 dark:text-slate-500">→</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
                     {formatValue(node.change.newValue)}
                   </span>
                 </div>
               )}
               
               {node.change.type === 'added' && (
-                <span className="text-emerald-600 dark:text-emerald-400 font-mono text-sm">
+                <span className="text-emerald-600 dark:text-emerald-400 font-mono text-sm bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
                   {formatValue(node.change.newValue)}
                 </span>
               )}
               
               {node.change.type === 'removed' && (
-                <span className="text-red-600 dark:text-red-400 font-mono text-sm">
+                <span className="text-red-600 dark:text-red-400 font-mono text-sm bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
                   {formatValue(node.change.oldValue)}
                 </span>
               )}
@@ -197,24 +197,24 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
               <div className="flex items-center gap-2 mt-1 text-sm">
                 {change.type === 'changed' && (
                   <>
-                    <span className="text-red-600 dark:text-red-400 font-mono">
+                    <span className="text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
                       {formatValue(change.oldValue)}
                     </span>
                     <span className="text-slate-400 dark:text-slate-500">→</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
                       {formatValue(change.newValue)}
                     </span>
                   </>
                 )}
                 
                 {change.type === 'added' && (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
                     {formatValue(change.newValue)}
                   </span>
                 )}
                 
                 {change.type === 'removed' && (
-                  <span className="text-red-600 dark:text-red-400 font-mono">
+                  <span className="text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
                     {formatValue(change.oldValue)}
                   </span>
                 )}
