@@ -1,7 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
-import { ComparisonResult, DiffChange, DiffViewSettings, SearchFilters } from '@/types';
-import { ChevronRight, ChevronDown, Search, Filter, Eye, EyeOff } from 'lucide-react';
-import { Minimap } from './Minimap';
+import { useState, useMemo } from 'react';
+import { ComparisonResult, DiffViewSettings } from '@/types';
+import { Search, ChevronRight, ChevronDown, Plus, Minus, Edit3, Eye, EyeOff } from 'lucide-react';
 
 interface SideBySideDiffProps {
   result: ComparisonResult;
@@ -9,385 +8,301 @@ interface SideBySideDiffProps {
   onSettingsChange: (settings: DiffViewSettings) => void;
 }
 
-interface DiffLine {
-  lineNumber: number;
-  content: string;
-  type: 'context' | 'added' | 'removed' | 'changed';
-  path?: string;
-  change?: DiffChange;
+interface DiffEntry {
+  path: string;
+  leftValue: any;
+  rightValue: any;
+  type: 'added' | 'removed' | 'changed' | 'unchanged';
+  leftLine?: number;
+  rightLine?: number;
 }
 
 export function SideBySideDiff({ result, settings, onSettingsChange }: SideBySideDiffProps) {
-  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
-    changeTypes: ['added', 'removed', 'changed'],
-    pathPattern: '',
-    valuePattern: '',
-    severity: ['critical', 'major', 'minor', 'cosmetic'],
-    category: ['security', 'performance', 'configuration', 'structure']
-  });
-  
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  const [showFilters, setShowFilters] = useState(false);
-  const [currentViewport, setCurrentViewport] = useState({ start: 0, end: 20 });
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const [showOnlyDifferences, setShowOnlyDifferences] = useState(true);
 
-  const filteredChanges = useMemo(() => {
-    return result.changes.filter(change => {
-      // Filter by change types
-      if (!searchFilters.changeTypes.includes(change.type)) return false;
-      
-      // Filter by path pattern
-      if (searchFilters.pathPattern && !change.path.toLowerCase().includes(searchFilters.pathPattern.toLowerCase())) {
-        return false;
-      }
-      
-      // Filter by value pattern
-      if (searchFilters.valuePattern) {
-        const oldValue = String(change.oldValue || '').toLowerCase();
-        const newValue = String(change.newValue || '').toLowerCase();
-        const pattern = searchFilters.valuePattern.toLowerCase();
-        if (!oldValue.includes(pattern) && !newValue.includes(pattern)) {
-          return false;
-        }
-      }
-      
-      // Filter by severity
-      if (change.severity && !searchFilters.severity.includes(change.severity)) return false;
-      
-      // Filter by category
-      if (change.category && !searchFilters.category.includes(change.category)) return false;
-      
-      return true;
+  // Generate diff entries from changes
+  const diffEntries = useMemo(() => {
+    const entries: DiffEntry[] = [];
+    
+    // Add changed/removed/added entries
+    result.changes.forEach(change => {
+      entries.push({
+        path: change.path,
+        leftValue: change.oldValue,
+        rightValue: change.newValue,
+        type: change.type,
+        leftLine: change.lineNumber?.left,
+        rightLine: change.lineNumber?.right
+      });
     });
-  }, [result.changes, searchFilters]);
 
-  const leftLines = useMemo(() => generateLines(filteredChanges, 'left'), [filteredChanges]);
-  const rightLines = useMemo(() => generateLines(filteredChanges, 'right'), [filteredChanges]);
+    // If showing all content, we'd need to merge with unchanged content
+    // For now, we'll just show the changes in a clear format
+    
+    return entries;
+  }, [result.changes]);
 
-  // Calculate total lines for minimap
-  const totalLines = Math.max(leftLines.length, rightLines.length);
+  const filteredEntries = useMemo(() => {
+    let filtered = diffEntries;
 
-  const toggleSection = (path: string) => {
-    const newExpanded = new Set(expandedSections);
+    // Filter by search query
+    if (searchQuery) {
+      filtered = filtered.filter(entry => 
+        entry.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(entry.leftValue || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(entry.rightValue || '').toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Filter by differences only
+    if (showOnlyDifferences) {
+      filtered = filtered.filter(entry => entry.type !== 'unchanged');
+    }
+
+    return filtered;
+  }, [diffEntries, searchQuery, showOnlyDifferences]);
+
+  const togglePath = (path: string) => {
+    const newExpanded = new Set(expandedPaths);
     if (newExpanded.has(path)) {
       newExpanded.delete(path);
     } else {
       newExpanded.add(path);
     }
-    setExpandedSections(newExpanded);
+    setExpandedPaths(newExpanded);
   };
 
-  const getSeverityColor = (severity?: string) => {
-    switch (severity) {
-      case 'critical': return 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20';
-      case 'major': return 'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20';
-      case 'minor': return 'text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20';
-      case 'cosmetic': return 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20';
-      default: return 'text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/20';
+  const formatValue = (value: any) => {
+    if (value === null) return 'null';
+    if (value === undefined) return 'undefined';
+    if (typeof value === 'string') return `"${value}"`;
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'added': return <Plus className="w-4 h-4 text-emerald-600" />;
+      case 'removed': return <Minus className="w-4 h-4 text-red-600" />;
+      case 'changed': return <Edit3 className="w-4 h-4 text-blue-600" />;
+      default: return null;
     }
   };
 
-  const getCategoryIcon = (category?: string) => {
-    switch (category) {
-      case 'security': return '🔒';
-      case 'performance': return '⚡';
-      case 'configuration': return '⚙️';
-      case 'structure': return '🏗️';
-      default: return '📄';
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'added': return 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500';
+      case 'removed': return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500';
+      case 'changed': return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500';
+      default: return 'bg-white dark:bg-slate-800';
     }
   };
 
-  const handleViewportChange = (start: number, end: number) => {
-    setCurrentViewport({ start, end });
-    
-    // Scroll to the corresponding position in the diff content
-    if (contentRef.current) {
-      const scrollTop = (start / totalLines) * contentRef.current.scrollHeight;
-      contentRef.current.scrollTop = scrollTop;
+  const getCellColor = (type: string, side: 'left' | 'right') => {
+    if (type === 'added') {
+      return side === 'right' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-50 dark:bg-slate-800/50';
     }
-  };
-
-  // Update viewport when user scrolls
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLDivElement;
-    const scrollPercentage = target.scrollTop / (target.scrollHeight - target.clientHeight);
-    const visibleLines = Math.floor((target.clientHeight / target.scrollHeight) * totalLines);
-    const start = Math.floor(scrollPercentage * (totalLines - visibleLines));
-    const end = start + visibleLines;
-    
-    setCurrentViewport({ start, end });
+    if (type === 'removed') {
+      return side === 'left' ? 'bg-red-100 dark:bg-red-900/30' : 'bg-slate-50 dark:bg-slate-800/50';
+    }
+    if (type === 'changed') {
+      return side === 'left' ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30';
+    }
+    return 'bg-white dark:bg-slate-800';
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {/* Header with controls */}
-      <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
+    <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden">
+      {/* Header */}
+      <div className="bg-slate-50/90 dark:bg-slate-700/90 backdrop-blur-xl px-6 py-4 border-b border-slate-200/50 dark:border-slate-600/50">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Side-by-Side Diff</h3>
-            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <span>{filteredChanges.length} changes</span>
-              <span>•</span>
-              <span className="text-red-600 dark:text-red-400">-{result.summary.removed}</span>
-              <span className="text-green-600 dark:text-green-400">+{result.summary.added}</span>
-              <span className="text-blue-600 dark:text-blue-400">~{result.summary.changed}</span>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Beyond Compare View
+            </h3>
+            <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+              <span className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                {result.summary.added} Added
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                {result.summary.removed} Removed
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                {result.summary.changed} Changed
+              </span>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              <Filter className="w-4 h-4" />
-              Filters
-            </button>
-            
-            <button
-              onClick={() => onSettingsChange({ ...settings, showMinimap: !settings.showMinimap })}
-              className={`flex items-center gap-1 px-3 py-1 text-sm rounded-md transition-colors ${
-                settings.showMinimap 
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+              onClick={() => setShowOnlyDifferences(!showOnlyDifferences)}
+              className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                showOnlyDifferences 
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                  : 'bg-slate-100 dark:bg-slate-700/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
-              {settings.showMinimap ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              Minimap
+              {showOnlyDifferences ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              {showOnlyDifferences ? 'Show All' : 'Differences Only'}
             </button>
           </div>
         </div>
         
-        {/* Search and filters */}
-        {showFilters && (
-          <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Search Path
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    value={searchFilters.pathPattern}
-                    onChange={(e) => setSearchFilters(prev => ({ ...prev, pathPattern: e.target.value }))}
-                    placeholder="Filter by path..."
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Search Value
-                </label>
-                <input
-                  type="text"
-                  value={searchFilters.valuePattern}
-                  onChange={(e) => setSearchFilters(prev => ({ ...prev, valuePattern: e.target.value }))}
-                  placeholder="Filter by value..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Change Types
-                </label>
-                <div className="flex gap-2">
-                  {(['added', 'removed', 'changed'] as const).map(type => (
-                    <label key={type} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={searchFilters.changeTypes.includes(type)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSearchFilters(prev => ({ 
-                              ...prev, 
-                              changeTypes: [...prev.changeTypes, type] 
-                            }));
-                          } else {
-                            setSearchFilters(prev => ({ 
-                              ...prev, 
-                              changeTypes: prev.changeTypes.filter(t => t !== type) 
-                            }));
-                          }
-                        }}
-                        className="mr-1"
-                      />
-                      <span className="text-sm capitalize">{type}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Main content with minimap */}
-      <div className="flex">
-        {/* Diff content */}
-        <div className="flex-1">
-          {/* File headers */}
-          <div className="grid grid-cols-2 border-b border-gray-200 dark:border-gray-700">
-            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-r border-gray-200 dark:border-gray-700">
-              <div className="font-medium text-red-800 dark:text-red-300">{result.leftFile.name}</div>
-              <div className="text-sm text-red-600 dark:text-red-400">{result.leftFile.format.toUpperCase()}</div>
-            </div>
-            <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20">
-              <div className="font-medium text-green-800 dark:text-green-300">{result.rightFile.name}</div>
-              <div className="text-sm text-green-600 dark:text-green-400">{result.rightFile.format.toUpperCase()}</div>
-            </div>
-          </div>
-
-          {/* Diff content */}
-          <div 
-            ref={contentRef}
-            className="max-h-96 overflow-auto"
-            onScroll={handleScroll}
-          >
-            <div className="grid grid-cols-2">
-              <div className="border-r border-gray-200 dark:border-gray-700">
-                {leftLines.map((line, index) => (
-                  <DiffLineComponent
-                    key={index}
-                    line={line}
-                    settings={settings}
-                    getSeverityColor={getSeverityColor}
-                    getCategoryIcon={getCategoryIcon}
-                    onToggleSection={toggleSection}
-                    isExpanded={expandedSections.has(line.path || '')}
-                  />
-                ))}
-              </div>
-              <div>
-                {rightLines.map((line, index) => (
-                  <DiffLineComponent
-                    key={index}
-                    line={line}
-                    settings={settings}
-                    getSeverityColor={getSeverityColor}
-                    getCategoryIcon={getCategoryIcon}
-                    onToggleSection={toggleSection}
-                    isExpanded={expandedSections.has(line.path || '')}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Minimap */}
-        {settings.showMinimap && (
-          <div className="w-48 border-l border-gray-200 dark:border-gray-700">
-            <Minimap
-              changes={filteredChanges}
-              totalLines={totalLines}
-              currentViewport={currentViewport}
-              onViewportChange={handleViewportChange}
-              className="h-full"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Statistics footer */}
-      <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-          <div className="flex items-center gap-4">
-            <span>Similarity: {result.stats.similarities.toFixed(1)}%</span>
-            <span>Characters: {(result.stats.totalCharacters || 0).toLocaleString()}</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span>Time: {result.metadata.comparisonTime.toFixed(2)}ms</span>
-            <span>Algorithm: {result.metadata.algorithm || 'default'}</span>
-          </div>
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search paths, keys, or values..."
+            className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
       </div>
-    </div>
-  );
-}
 
-interface DiffLineComponentProps {
-  line: DiffLine;
-  settings: DiffViewSettings;
-  getSeverityColor: (severity?: string) => string;
-  getCategoryIcon: (category?: string) => string;
-  onToggleSection: (path: string) => void;
-  isExpanded: boolean;
-}
-
-function DiffLineComponent({ line, settings, getSeverityColor, getCategoryIcon, onToggleSection, isExpanded }: DiffLineComponentProps) {
-  const getLineClass = () => {
-    switch (line.type) {
-      case 'added': return 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500';
-      case 'removed': return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500';
-      case 'changed': return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500';
-      default: return 'bg-white dark:bg-gray-800';
-    }
-  };
-
-  return (
-    <div className={`px-4 py-2 border-b border-gray-100 dark:border-gray-700 ${getLineClass()}`}>
-      <div className="flex items-center gap-2">
-        {settings.showLineNumbers && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 w-8 flex-shrink-0">
-            {line.lineNumber}
-          </span>
-        )}
-        
-        {line.change && (
+      {/* File Headers */}
+      <div className="grid grid-cols-2 border-b border-slate-200/50 dark:border-slate-600/50">
+        <div className="px-6 py-3 bg-red-50/50 dark:bg-red-900/10 border-r border-slate-200/50 dark:border-slate-600/50">
           <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSeverityColor(line.change.severity)}`}>
-              {line.change.severity}
-            </span>
-            <span className="text-sm">{getCategoryIcon(line.change.category)}</span>
+            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <div>
+              <div className="font-medium text-slate-900 dark:text-slate-100">
+                {result.leftFile.name}
+              </div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                {result.leftFile.format.toUpperCase()}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="px-6 py-3 bg-emerald-50/50 dark:bg-emerald-900/10">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+            <div>
+              <div className="font-medium text-slate-900 dark:text-slate-100">
+                {result.rightFile.name}
+              </div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                {result.rightFile.format.toUpperCase()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Diff Content */}
+      <div className="max-h-[600px] overflow-auto">
+        {filteredEntries.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-slate-500 dark:text-slate-400">
+              {searchQuery ? 'No matches found' : 'No differences to show'}
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-200/50 dark:divide-slate-600/50">
+            {filteredEntries.map((entry, index) => (
+              <div
+                key={index}
+                className={`transition-all duration-200 ${getTypeColor(entry.type)}`}
+              >
+                {/* Path Header */}
+                <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-700/50">
+                  <button
+                    onClick={() => togglePath(entry.path)}
+                    className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-slate-100 w-full text-left"
+                  >
+                    {expandedPaths.has(entry.path) ? (
+                      <ChevronDown className="w-4 h-4" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4" />
+                    )}
+                    {getTypeIcon(entry.type)}
+                    <span className="font-mono text-slate-900 dark:text-slate-100">{entry.path}</span>
+                  </button>
+                </div>
+
+                {/* Content */}
+                {expandedPaths.has(entry.path) && (
+                  <div className="grid grid-cols-2">
+                    {/* Left Side */}
+                    <div className={`px-6 py-4 border-r border-slate-200/50 dark:border-slate-600/50 ${getCellColor(entry.type, 'left')}`}>
+                      {entry.leftLine && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                          Line {entry.leftLine}
+                        </div>
+                      )}
+                      <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto">
+                        {entry.type === 'added' ? (
+                          <span className="text-slate-400 dark:text-slate-500 italic">
+                            (not present)
+                          </span>
+                        ) : (
+                          formatValue(entry.leftValue)
+                        )}
+                      </pre>
+                    </div>
+
+                    {/* Right Side */}
+                    <div className={`px-6 py-4 ${getCellColor(entry.type, 'right')}`}>
+                      {entry.rightLine && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                          Line {entry.rightLine}
+                        </div>
+                      )}
+                      <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap overflow-x-auto">
+                        {entry.type === 'removed' ? (
+                          <span className="text-slate-400 dark:text-slate-500 italic">
+                            (not present)
+                          </span>
+                        ) : (
+                          formatValue(entry.rightValue)
+                        )}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
-        
-        <button
-          onClick={() => line.path && onToggleSection(line.path)}
-          className="flex items-center gap-1 text-sm hover:text-blue-600 dark:hover:text-blue-400"
-        >
-          {line.path && (
-            <>
-              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <span className="font-mono">{line.path}</span>
-            </>
-          )}
-        </button>
       </div>
-      
-      {line.path && isExpanded && (
-        <div className="mt-2 pl-8">
-          <pre className={`text-sm whitespace-pre-wrap ${settings.wrapLines ? 'break-words' : ''}`}>
-            {line.content}
-          </pre>
+
+      {/* Footer */}
+      <div className="px-6 py-3 bg-slate-50/90 dark:bg-slate-700/90 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-600/50">
+        <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
+          <div className="flex items-center gap-4">
+            <span>Total Changes: {result.summary.total}</span>
+            <span>Similarity: {result.stats.similarities.toFixed(1)}%</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span>Showing {filteredEntries.length} of {diffEntries.length} entries</span>
+            <button
+              onClick={() => {
+                if (expandedPaths.size === filteredEntries.length) {
+                  setExpandedPaths(new Set());
+                } else {
+                  setExpandedPaths(new Set(filteredEntries.map(entry => entry.path)));
+                }
+              }}
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+            >
+              {expandedPaths.size === filteredEntries.length ? 'Collapse All' : 'Expand All'}
+            </button>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
-}
-
-function generateLines(changes: DiffChange[], side: 'left' | 'right'): DiffLine[] {
-  const lines: DiffLine[] = [];
-  let lineNumber = 1;
-  
-  // This is a simplified implementation
-  // In a real implementation, you would need to parse the actual file content
-  // and map changes to their corresponding lines
-  
-  changes.forEach(change => {
-    const line: DiffLine = {
-      lineNumber: lineNumber++,
-      content: side === 'left' ? String(change.oldValue || '') : String(change.newValue || ''),
-      type: change.type,
-      path: change.path,
-      change
-    };
-    lines.push(line);
-  });
-  
-  return lines;
 }
