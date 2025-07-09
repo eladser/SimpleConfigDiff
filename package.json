@@ -34,7 +34,6 @@
     "ini": "^4.1.1",
     "dotenv": "^16.3.1",
     "@iarna/toml": "^3.0.0",
-    "deep-diff": "^1.0.2",
     "lucide-react": "^0.263.1",
     "clsx": "^2.0.0",
     "tailwind-merge": "^2.2.0"
