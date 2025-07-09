@@ -28,12 +28,6 @@ const DEFAULT_SUPPORTED_EXTENSIONS = [
   '.hcl', '.tf', '.properties', '.csv', '.config', '.conf'
 ];
 
-declare global {
-  interface HTMLInputElement {
-    webkitdirectory?: boolean;
-  }
-}
-
 export function DirectoryUpload({
   title,
   onDirectoryUpload,
@@ -69,7 +63,7 @@ export function DirectoryUpload({
         }
 
         // Get relative path from webkitRelativePath
-        const relativePath = file.webkitRelativePath || file.name;
+        const relativePath = (file as any).webkitRelativePath || file.name;
         const extension = '.' + file.name.split('.').pop()?.toLowerCase();
         const isSupported = supportedExtensions.includes(extension);
 
@@ -93,7 +87,7 @@ export function DirectoryUpload({
         }
 
         files.push({
-          path: file.webkitRelativePath || file.name,
+          path: (file as any).webkitRelativePath || file.name,
           file,
           relativePath,
           isSupported,
@@ -233,7 +227,7 @@ export function DirectoryUpload({
           type="file"
           onChange={handleFileSelect}
           className="hidden"
-          {...({ webkitdirectory: true } as any)}
+          {...({ webkitdirectory: '', directory: '' } as any)}
           multiple
         />
 
