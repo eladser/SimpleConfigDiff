@@ -104,10 +104,10 @@ export class GitHubIntegration {
 
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
     const url = `${this.apiBase}${endpoint}`;
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
       'User-Agent': 'SimpleConfigDiff-App',
-      ...options.headers
+      ...(options.headers as Record<string, string> || {})
     };
 
     if (this.token) {
