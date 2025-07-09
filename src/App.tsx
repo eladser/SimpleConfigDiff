@@ -460,8 +460,6 @@ function App() {
               {options.diffMode === 'side-by-side' ? (
                 <SideBySideDiff
                   result={comparisonResult}
-                  settings={viewSettings}
-                  onSettingsChange={setViewSettings}
                 />
               ) : options.diffMode === 'unified' ? (
                 <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
