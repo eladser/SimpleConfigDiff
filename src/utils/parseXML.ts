@@ -14,7 +14,7 @@ export function parseXML(content: string): ParsedConfig {
       arrayMode: false,
       trimValues: true,
       cdataTagName: '__cdata',
-      cdataPositionChar: '\\c',
+      cdataPositionChar: '\c',
       parseTrueNumberOnly: false,
       isArray: (name, jpath, isLeafNode, isAttribute) => {
         // Handle common XML arrays
