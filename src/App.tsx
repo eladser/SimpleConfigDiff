@@ -160,15 +160,29 @@ function App() {
   }, [performComparison]);
 
   const handleRecompare = useCallback(() => {
-    // Clear previous results and perform a fresh comparison with current settings
+    // Clear previous results and show loading state
     setComparisonResult(null);
     setError(null);
+    setIsComparing(true);
     
-    // Small delay to show the refresh is happening
+    // Use a timeout to ensure the UI updates before starting the comparison
     setTimeout(() => {
       performComparison();
-    }, 100);
+    }, 50);
   }, [performComparison]);
+
+  // Update comparison when options change (for real-time updates)
+  const handleOptionsChange = useCallback((newOptions: DiffOptions) => {
+    setOptions(newOptions);
+    
+    // If we have a comparison result, automatically re-compare with new options
+    if (comparisonResult && leftFile.isValid && rightFile.isValid) {
+      // Small delay to prevent too many rapid updates
+      setTimeout(() => {
+        performComparison();
+      }, 100);
+    }
+  }, [comparisonResult, leftFile.isValid, rightFile.isValid, performComparison]);
   
   const handleReset = useCallback(() => {
     setLeftFile({
@@ -450,7 +464,7 @@ function App() {
               <div className="mb-6 animate-slide-down">
                 <AdvancedOptionsPanel
                   options={options}
-                  onOptionsChange={setOptions}
+                  onOptionsChange={handleOptionsChange}
                 />
               </div>
             )}
