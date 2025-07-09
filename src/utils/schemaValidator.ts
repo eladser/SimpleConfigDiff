@@ -64,7 +64,7 @@ export class SchemaValidator {
     } catch (error) {
       errors.push({
         path: '',
-        message: `Schema validation failed: ${error.message}`,
+        message: `Schema validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         severity: 'error',
         code: 'VALIDATION_ERROR'
       });
@@ -376,7 +376,6 @@ export class SchemaValidator {
 
     // anyOf, oneOf, allOf validations
     if (schema.anyOf) {
-      const anyOfErrors: SchemaValidationError[] = [];
       let anyOfValid = false;
 
       for (const subSchema of schema.anyOf) {
@@ -388,7 +387,6 @@ export class SchemaValidator {
           anyOfValid = true;
           break;
         }
-        anyOfErrors.push(...subErrors);
       }
 
       if (!anyOfValid) {
@@ -402,14 +400,14 @@ export class SchemaValidator {
     }
 
     if (schema.oneOf) {
-      const oneOfResults = schema.oneOf.map(subSchema => {
+      const oneOfResults = schema.oneOf.map((subSchema: any) => {
         const subErrors: SchemaValidationError[] = [];
         const subWarnings: SchemaValidationWarning[] = [];
         this.validateRecursive(data, subSchema, path, subErrors, subWarnings);
         return subErrors.length === 0;
       });
 
-      const validCount = oneOfResults.filter(valid => valid).length;
+      const validCount = oneOfResults.filter((valid: boolean) => valid).length;
       if (validCount !== 1) {
         errors.push({
           path,
@@ -550,7 +548,7 @@ export function validateConfigWithSchema(
       isValid: false,
       errors: [{
         path: '',
-        message: `Failed to parse content: ${error.message}`,
+        message: `Failed to parse content: ${error instanceof Error ? error.message : 'Unknown error'}`,
         severity: 'error',
         code: 'PARSE_ERROR'
       }],
