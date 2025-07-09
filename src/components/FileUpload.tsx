@@ -57,11 +57,11 @@ export function FileUpload({
   }, [title]);
   
   return (
-    <div className="card hover-lift">
+    <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 p-6 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h3>
+        <h3 className="text-xl font-semibold text-slate-900 dark:text-white">{title}</h3>
         {fileState.format && (
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full">
             <span>{getFormatIcon(fileState.format)}</span>
             <span>{getFormatLabel(fileState.format)}</span>
           </div>
@@ -80,7 +80,7 @@ export function FileUpload({
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <Upload className={`w-16 h-16 transition-all duration-300 ${
-                  isDragOver ? 'text-blue-500 scale-110' : 'text-gray-400 group-hover:text-blue-500'
+                  isDragOver ? 'text-blue-500 scale-110' : 'text-slate-400 group-hover:text-blue-500'
                 }`} />
                 {isDragOver && (
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -90,11 +90,11 @@ export function FileUpload({
               </div>
               <div className="text-center">
                 <p className={`text-lg font-medium mb-2 transition-colors duration-300 ${
-                  isDragOver ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                  isDragOver ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'
                 }`}>
                   {isDragOver ? 'Drop your file here' : placeholder}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Drag and drop or click to select
                 </p>
               </div>
@@ -104,9 +104,9 @@ export function FileUpload({
           <div className="mt-6 flex justify-center">
             <button
               onClick={openFileDialog}
-              className="btn btn-primary px-8 py-3 text-lg font-semibold"
+              className="flex items-center gap-2 px-8 py-3 text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
             >
-              <File className="w-5 h-5 mr-2" />
+              <File className="w-5 h-5" />
               Choose File
             </button>
           </div>
@@ -121,14 +121,14 @@ export function FileUpload({
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl border border-gray-200 dark:border-gray-600">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 rounded-xl border border-slate-200 dark:border-slate-600">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                 <File className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="font-medium text-gray-900 dark:text-white">{fileState.file.name}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="font-medium text-slate-900 dark:text-white">{fileState.file.name}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   {(fileState.file.size / 1024).toFixed(1)} KB
                   {fileState.lineCount && ` • ${fileState.lineCount} lines`}
                 </p>
@@ -137,7 +137,7 @@ export function FileUpload({
             
             <div className="flex items-center gap-2">
               {fileState.isValid ? (
-                <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                   <CheckCircle className="w-5 h-5" />
                   <span className="text-sm font-medium">Valid</span>
                 </div>
@@ -150,9 +150,9 @@ export function FileUpload({
               
               <button
                 onClick={handleRemoveFile}
-                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors ml-2"
+                className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-full transition-colors ml-2"
               >
-                <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               </button>
             </div>
           </div>
@@ -168,10 +168,10 @@ export function FileUpload({
           )}
           
           {fileState.isValid && (
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl animate-bounce-in">
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl animate-bounce-in">
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-                <span className="text-sm text-green-800 dark:text-green-300 font-medium">
+                <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-sm text-emerald-800 dark:text-emerald-300 font-medium">
                   File parsed successfully
                 </span>
               </div>
