@@ -24,6 +24,12 @@ export interface DiffChange {
   // CSV-specific fields
   csvColumn?: string;
   csvRow?: number;
+  // Docker Compose-specific fields
+  dockerComposeContext?: {
+    section: 'services' | 'networks' | 'volumes' | 'secrets' | 'configs';
+    serviceName?: string;
+    resourceName?: string;
+  };
 }
 
 export interface PathRule {
@@ -82,6 +88,18 @@ export interface DiffStats {
     columnsRemoved: number;
     columnsChanged: number;
   };
+  // Docker Compose-specific stats
+  dockerComposeStats?: {
+    servicesAdded: number;
+    servicesRemoved: number;
+    servicesChanged: number;
+    networksAdded: number;
+    networksRemoved: number;
+    networksChanged: number;
+    volumesAdded: number;
+    volumesRemoved: number;
+    volumesChanged: number;
+  };
 }
 
 export interface ParsedConfig {
@@ -95,6 +113,44 @@ export interface ParsedConfig {
     rowCount: number;
     delimiter: string;
     hasHeader: boolean;
+  };
+  // Docker Compose-specific metadata
+  dockerComposeMetadata?: {
+    version: string;
+    services: Array<{
+      name: string;
+      image?: string;
+      build: boolean;
+      ports: number;
+      volumes: number;
+      environment: number;
+      networks: number;
+      dependsOn: number;
+      restart: string;
+      healthcheck: boolean;
+      deploy: boolean;
+    }>;
+    networks: Array<{
+      name: string;
+      driver: string;
+      external: boolean;
+    }>;
+    volumes: Array<{
+      name: string;
+      driver: string;
+      external: boolean;
+    }>;
+    secrets: Array<{
+      name: string;
+      external: boolean;
+      file: boolean;
+    }>;
+    configs: Array<{
+      name: string;
+      external: boolean;
+      file: boolean;
+    }>;
+    hasXExtensions: boolean;
   };
 }
 
