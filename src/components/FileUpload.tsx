@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { FileUploadState, ConfigFormat } from '@/types';
 import { 
   Upload, 
@@ -34,6 +34,7 @@ const formatIcons = {
   toml: { icon: Wrench, color: 'from-orange-400 to-red-400' },
   env: { icon: Globe, color: 'from-emerald-400 to-teal-400' },
   properties: { icon: Coffee, color: 'from-amber-400 to-orange-400' },
+  config: { icon: Database, color: 'from-slate-400 to-blue-400' },
   conf: { icon: Database, color: 'from-slate-400 to-blue-400' }
 };
 
