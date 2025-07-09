@@ -245,8 +245,8 @@ export function compareCSVData(left: Record<string, any>, right: Record<string, 
   
   // Compare headers
   if (leftMeta && rightMeta) {
-    const leftHeaders = new Set(leftMeta.headers);
-    const rightHeaders = new Set(rightMeta.headers);
+    const leftHeaders = new Set(leftMeta.headers as string[]);
+    const rightHeaders = new Set(rightMeta.headers as string[]);
     
     // Check for added/removed columns
     for (const header of rightHeaders) {
