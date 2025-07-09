@@ -27,7 +27,7 @@ export class DiffExporter {
       case 'html':
         return this.exportHTML(fullOptions);
       case 'patch':
-        return this.exportPatch(fullOptions);
+        return this.exportPatch();
       default:
         throw new Error(`Unsupported export format: ${format}`);
     }
@@ -139,7 +139,7 @@ export class DiffExporter {
     return html;
   }
 
-  private exportPatch(exportOptions: ExportOptions): string {
+  private exportPatch(): string {
     if (this.result.unifiedDiff) {
       return this.result.unifiedDiff;
     }
