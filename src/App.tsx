@@ -22,9 +22,7 @@ import {
   TrendingUp,
   Zap,
   ArrowRight,
-  FileText,
-  Eye,
-  EyeOff
+  FileText
 } from 'lucide-react';
 
 function App() {
