@@ -1,5 +1,3 @@
-import { ConfigFormat } from '@/types';
-
 export interface TemplateBlock {
   type: 'variable' | 'block' | 'comment' | 'text';
   content: string;
@@ -26,7 +24,6 @@ export interface TemplateParseResult {
 export class TemplateParser {
   private content: string;
   private format: 'jinja2' | 'handlebars' | 'mustache';
-  private lines: string[];
   private position: number = 0;
   private line: number = 1;
   private column: number = 1;
@@ -34,7 +31,6 @@ export class TemplateParser {
   constructor(content: string, format: 'jinja2' | 'handlebars' | 'mustache') {
     this.content = content;
     this.format = format;
-    this.lines = content.split('\n');
   }
 
   parse(): TemplateParseResult {
