@@ -1,4 +1,4 @@
-import { DiffChange, DiffOptions, ComparisonResult, ConfigFile, DiffStats } from '@/types';
+import { DiffChange, DiffOptions, ComparisonResult, ConfigFile } from '@/types';
 import { SemanticComparator, PathMatcher, ValueTransformer, DiffSeverityAnalyzer, DiffStatistics } from './advancedComparison';
 import { generateUnifiedDiff } from './unifiedDiff';
 
@@ -31,8 +31,8 @@ class AdvancedDiffGenerator {
     }
     
     // Apply value transformations
-    const transformedLeft = this.applyTransformations(left, currentPath);
-    const transformedRight = this.applyTransformations(right, currentPath);
+    const transformedLeft = this.applyTransformations(left);
+    const transformedRight = this.applyTransformations(right);
     
     // Use semantic comparison if enabled
     if (this.options.semanticComparison && this.semanticComparator.semanticEquals(transformedLeft, transformedRight)) {
@@ -127,7 +127,7 @@ class AdvancedDiffGenerator {
     return false;
   }
 
-  private applyTransformations(value: any, path: string): any {
+  private applyTransformations(value: any): any {
     return ValueTransformer.transform(value, this.options.valueTransformations);
   }
 }
@@ -226,6 +226,24 @@ export function formatValue(value: any): string {
     return JSON.stringify(value, null, 2);
   }
   return String(value);
+}
+
+function categorizeChange(path: string): 'security' | 'performance' | 'configuration' | 'structure' {
+  const lowerPath = path.toLowerCase();
+  
+  if (/password|secret|token|key|credential|auth|ssl|tls|cert/.test(lowerPath)) {
+    return 'security';
+  }
+  
+  if (/cache|timeout|pool|connection|thread|memory|cpu|limit|throttle|rate/.test(lowerPath)) {
+    return 'performance';
+  }
+  
+  if (/config|setting|option|preference|param/.test(lowerPath)) {
+    return 'configuration';
+  }
+  
+  return 'structure';
 }
 
 export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, options: DiffOptions): ComparisonResult {
@@ -331,7 +349,7 @@ export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, option
     change.severity = DiffSeverityAnalyzer.analyzeSeverity(change);
     
     // Add category based on path
-    change.category = this.categorizeChange(change.path);
+    change.category = categorizeChange(change.path);
     
     changes.push(change);
   });
@@ -370,22 +388,4 @@ export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, option
   }
   
   return result;
-}
-
-function categorizeChange(path: string): 'security' | 'performance' | 'configuration' | 'structure' {
-  const lowerPath = path.toLowerCase();
-  
-  if (/password|secret|token|key|credential|auth|ssl|tls|cert/.test(lowerPath)) {
-    return 'security';
-  }
-  
-  if (/cache|timeout|pool|connection|thread|memory|cpu|limit|throttle|rate/.test(lowerPath)) {
-    return 'performance';
-  }
-  
-  if (/config|setting|option|preference|param/.test(lowerPath)) {
-    return 'configuration';
-  }
-  
-  return 'structure';
 }
