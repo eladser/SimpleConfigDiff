@@ -1,4 +1,4 @@
-export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config' | 'hcl' | 'properties';
+export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config';
 
 export interface ConfigFile {
   name: string;
@@ -105,6 +105,7 @@ export interface FileUploadState {
 export interface DiffViewSettings {
   highlightSyntax: boolean;
   showMinimap: boolean;
+  showLineNumbers: boolean;
   wrapLines: boolean;
   fontSize: number;
   theme: 'vs' | 'vs-dark' | 'hc-black';
