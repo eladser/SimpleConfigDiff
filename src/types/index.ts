@@ -1,10 +1,12 @@
-export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config' | 'hcl' | 'properties' | 'csv';
+export type ConfigFormat = 'json' | 'yaml' | 'xml' | 'ini' | 'toml' | 'env' | 'config' | 'hcl' | 'properties' | 'csv' | 'jinja2' | 'handlebars' | 'mustache';
 
 export interface ConfigFile {
   name: string;
   content: string;
   format: ConfigFormat;
   parsedContent: Record<string, any>;
+  size?: number;
+  lastModified?: number;
 }
 
 export interface DiffChange {
@@ -14,6 +16,7 @@ export interface DiffChange {
   newValue?: any;
   oldType?: string;
   newType?: string;
+  description?: string;
   // New fields for enhanced diff
   severity?: 'critical' | 'major' | 'minor' | 'cosmetic';
   category?: 'security' | 'performance' | 'configuration' | 'structure';
@@ -80,11 +83,13 @@ export interface DiffOptions {
 }
 
 export interface DiffStats {
-  linesAdded: number;
-  linesRemoved: number;
-  linesChanged: number;
-  filesCompared: number;
-  totalCharacters: number;
+  linesAdded?: number;
+  linesRemoved?: number;
+  linesChanged?: number;
+  linesLeft?: number;
+  linesRight?: number;
+  filesCompared?: number;
+  totalCharacters?: number;
   similarities: number; // percentage
   // CSV-specific stats
   csvStats?: {
@@ -214,8 +219,8 @@ export interface ComparisonResult {
   unifiedDiff?: string;
   metadata: {
     comparisonTime: number;
-    algorithm: string;
-    options: DiffOptions;
+    algorithm?: string;
+    options?: DiffOptions;
   };
 }
 
@@ -248,7 +253,7 @@ export interface SearchFilters {
 }
 
 export interface ExportOptions {
-  format: 'html' | 'pdf' | 'json' | 'csv' | 'patch';
+  format: 'html' | 'pdf' | 'json' | 'csv' | 'patch' | 'xlsx';
   includeMetadata: boolean;
   includeStats: boolean;
   includeContext: boolean;
