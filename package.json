@@ -4,13 +4,17 @@
   "description": "A browser-based tool that compares configuration files and outputs human-friendly structured diffs",
   "main": "index.js",
   "homepage": "https://eladser.github.io/SimpleConfigDiff/",
+  "bin": {
+    "configdiff": "./bin/configdiff.js"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "cli": "node bin/configdiff.js"
   },
   "keywords": [
     "config",
@@ -22,7 +26,11 @@
     "toml",
     "env",
     "comparison",
-    "configuration"
+    "configuration",
+    "cli",
+    "command-line",
+    "batch",
+    "directory"
   ],
   "author": "eladser",
   "license": "MIT",
@@ -36,7 +44,8 @@
     "@iarna/toml": "^3.0.0",
     "lucide-react": "^0.263.1",
     "clsx": "^2.0.0",
-    "tailwind-merge": "^2.2.0"
+    "tailwind-merge": "^2.2.0",
+    "commander": "^11.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
@@ -55,5 +64,13 @@
     "tailwindcss": "^3.3.6",
     "typescript": "^5.2.2",
     "vite": "^4.5.0"
-  }
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "src/",
+    "index.html",
+    "README.md",
+    "LICENSE"
+  ]
 }
