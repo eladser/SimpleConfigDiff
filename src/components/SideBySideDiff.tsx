@@ -1,314 +1,388 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { ComparisonResult } from '@/types';
-import { Search, ChevronRight, ChevronDown, Plus, Minus, Edit3, Eye, EyeOff } from 'lucide-react';
+import { 
+  Plus, 
+  Minus, 
+  RefreshCw, 
+  Search, 
+  Filter, 
+  X, 
+  Eye, 
+  EyeOff,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 
 interface SideBySideDiffProps {
   result: ComparisonResult;
 }
 
-interface DiffEntry {
-  path: string;
-  leftValue: any;
-  rightValue: any;
-  type: 'added' | 'removed' | 'changed' | 'unchanged';
-  leftLine?: number;
-  rightLine?: number;
-}
-
 export function SideBySideDiff({ result }: SideBySideDiffProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
-  const [showOnlyDifferences, setShowOnlyDifferences] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'added' | 'removed' | 'changed'>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [showUnchanged, setShowUnchanged] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  // Generate diff entries from changes
-  const diffEntries = useMemo(() => {
-    const entries: DiffEntry[] = [];
-    
-    // Add changed/removed/added entries
-    result.changes.forEach(change => {
-      entries.push({
-        path: change.path,
-        leftValue: change.oldValue,
-        rightValue: change.newValue,
-        type: change.type,
-        leftLine: change.lineNumber?.left,
-        rightLine: change.lineNumber?.right
-      });
-    });
+  // Memoized filtered changes
+  const filteredChanges = useMemo(() => {
+    let filtered = result.changes;
 
-    // If showing all content, we'd need to merge with unchanged content
-    // For now, we'll just show the changes in a clear format
-    
-    return entries;
-  }, [result.changes]);
-
-  const filteredEntries = useMemo(() => {
-    let filtered = diffEntries;
-
-    // Filter by search query
-    if (searchQuery) {
-      filtered = filtered.filter(entry => 
-        entry.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(entry.leftValue || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(entry.rightValue || '').toLowerCase().includes(searchQuery.toLowerCase())
-      );
+    // Apply type filter
+    if (filterType !== 'all') {
+      filtered = filtered.filter(change => change.type === filterType);
     }
 
-    // Filter by differences only
-    if (showOnlyDifferences) {
-      filtered = filtered.filter(entry => entry.type !== 'unchanged');
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(change => {
+        const pathMatch = change.path.toLowerCase().includes(searchLower);
+        const oldValueMatch = change.oldValue && 
+          String(change.oldValue).toLowerCase().includes(searchLower);
+        const newValueMatch = change.newValue && 
+          String(change.newValue).toLowerCase().includes(searchLower);
+        
+        return pathMatch || oldValueMatch || newValueMatch;
+      });
     }
 
     return filtered;
-  }, [diffEntries, searchQuery, showOnlyDifferences]);
+  }, [result.changes, filterType, searchTerm]);
 
-  const togglePath = (path: string) => {
-    const newExpanded = new Set(expandedPaths);
-    if (newExpanded.has(path)) {
-      newExpanded.delete(path);
-    } else {
-      newExpanded.add(path);
-    }
-    setExpandedPaths(newExpanded);
-  };
+  // Memoized filter counts
+  const filterCounts = useMemo(() => ({
+    all: result.changes.length,
+    added: result.changes.filter(c => c.type === 'added').length,
+    removed: result.changes.filter(c => c.type === 'removed').length,
+    changed: result.changes.filter(c => c.type === 'changed').length
+  }), [result.changes]);
 
-  const formatValue = (value: any) => {
-    if (value === null) return 'null';
-    if (value === undefined) return 'undefined';
-    if (typeof value === 'string') return `"${value}"`;
-    if (typeof value === 'object') {
-      try {
-        return JSON.stringify(value, null, 2);
-      } catch {
-        return String(value);
+  // Memoized line-by-line diff
+  const lineDiff = useMemo(() => {
+    const leftLines = result.leftFile.content.split('\n');
+    const rightLines = result.rightFile.content.split('\n');
+    const maxLines = Math.max(leftLines.length, rightLines.length);
+    
+    const lines = [];
+    for (let i = 0; i < maxLines; i++) {
+      const leftLine = leftLines[i] || '';
+      const rightLine = rightLines[i] || '';
+      
+      let type: 'unchanged' | 'added' | 'removed' | 'changed' = 'unchanged';
+      if (leftLine !== rightLine) {
+        if (!leftLine && rightLine) type = 'added';
+        else if (leftLine && !rightLine) type = 'removed';
+        else type = 'changed';
       }
+      
+      lines.push({
+        lineNumber: i + 1,
+        leftContent: leftLine,
+        rightContent: rightLine,
+        type
+      });
     }
-    return String(value);
-  };
+    
+    return lines;
+  }, [result.leftFile.content, result.rightFile.content]);
 
-  const getTypeIcon = (type: string) => {
+  // Memoized visible lines (for performance)
+  const visibleLines = useMemo(() => {
+    let lines = lineDiff;
+    
+    // Filter by search term
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      lines = lines.filter(line => 
+        line.leftContent.toLowerCase().includes(searchLower) ||
+        line.rightContent.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Filter by type
+    if (filterType !== 'all') {
+      lines = lines.filter(line => line.type === filterType);
+    }
+    
+    // Filter unchanged lines
+    if (!showUnchanged) {
+      lines = lines.filter(line => line.type !== 'unchanged');
+    }
+    
+    return lines;
+  }, [lineDiff, searchTerm, filterType, showUnchanged]);
+
+  const toggleSection = useCallback((path: string) => {
+    const newCollapsed = new Set(collapsedSections);
+    if (newCollapsed.has(path)) {
+      newCollapsed.delete(path);
+    } else {
+      newCollapsed.add(path);
+    }
+    setCollapsedSections(newCollapsed);
+  }, [collapsedSections]);
+
+  const highlightSearchTerm = useCallback((text: string) => {
+    if (!searchTerm) return text;
+    
+    const parts = text.split(new RegExp(`(${searchTerm})`, 'gi'));
+    return parts.map((part, index) => 
+      part.toLowerCase() === searchTerm.toLowerCase() ? (
+        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800/50 rounded px-1">
+          {part}
+        </mark>
+      ) : part
+    );
+  }, [searchTerm]);
+
+  const getLineTypeClass = (type: string) => {
     switch (type) {
-      case 'added': return <Plus className="w-4 h-4 text-emerald-600" />;
-      case 'removed': return <Minus className="w-4 h-4 text-red-600" />;
-      case 'changed': return <Edit3 className="w-4 h-4 text-blue-600" />;
-      default: return null;
+      case 'added':
+        return 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 dark:border-emerald-400';
+      case 'removed':
+        return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400';
+      case 'changed':
+        return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400';
+      default:
+        return 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50';
     }
   };
 
-  const getTypeColor = (type: string) => {
+  const getLineIcon = (type: string) => {
     switch (type) {
-      case 'added': return 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500';
-      case 'removed': return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500';
-      case 'changed': return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500';
-      default: return 'bg-white dark:bg-slate-800';
+      case 'added':
+        return <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+      case 'removed':
+        return <Minus className="w-4 h-4 text-red-600 dark:text-red-400" />;
+      case 'changed':
+        return <RefreshCw className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+      default:
+        return null;
     }
   };
 
-  const getCellColor = (type: string, side: 'left' | 'right') => {
-    if (type === 'added') {
-      return side === 'right' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-50 dark:bg-slate-800/50';
-    }
-    if (type === 'removed') {
-      return side === 'left' ? 'bg-red-100 dark:bg-red-900/30' : 'bg-slate-50 dark:bg-slate-800/50';
-    }
-    if (type === 'changed') {
-      return side === 'left' ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30';
-    }
-    return 'bg-white dark:bg-slate-800';
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterType('all');
+    setShowUnchanged(false);
   };
+
+  const hasActiveFilters = searchTerm || filterType !== 'all' || showUnchanged;
 
   return (
-    <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden">
-      {/* Header */}
-      <div className="bg-slate-50/90 dark:bg-slate-700/90 backdrop-blur-xl px-6 py-4 border-b border-slate-200/50 dark:border-slate-600/50">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Beyond Compare View
-            </h3>
-            <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-              <span className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                {result.summary.added} Added
+    <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50">
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+            Side-by-Side Comparison
+          </h3>
+          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+            <span>Showing {visibleLines.length} lines</span>
+            {hasActiveFilters && (
+              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md">
+                Filtered
               </span>
-              <span className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                {result.summary.removed} Removed
-              </span>
-              <span className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                {result.summary.changed} Changed
-              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Search and Filter Controls */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search in file contents..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowOnlyDifferences(!showOnlyDifferences)}
-              className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
-                showOnlyDifferences 
+              onClick={() => setShowUnchanged(!showUnchanged)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                showUnchanged
                   ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
-                  : 'bg-slate-100 dark:bg-slate-700/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
               }`}
             >
-              {showOnlyDifferences ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              {showOnlyDifferences ? 'Show All' : 'Differences Only'}
+              {showUnchanged ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showUnchanged ? 'Hide' : 'Show'} Unchanged
             </button>
-          </div>
-        </div>
-        
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search paths, keys, or values..."
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-      </div>
 
-      {/* File Headers */}
-      <div className="grid grid-cols-2 border-b border-slate-200/50 dark:border-slate-600/50">
-        <div className="px-6 py-3 bg-red-50/50 dark:bg-red-900/10 border-r border-slate-200/50 dark:border-slate-600/50">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <div>
-              <div className="font-medium text-slate-900 dark:text-slate-100">
-                {result.leftFile.name}
-              </div>
-              <div className="text-sm text-slate-500 dark:text-slate-400">
-                {result.leftFile.format.toUpperCase()}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="px-6 py-3 bg-emerald-50/50 dark:bg-emerald-900/10">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-            <div>
-              <div className="font-medium text-slate-900 dark:text-slate-100">
-                {result.rightFile.name}
-              </div>
-              <div className="text-sm text-slate-500 dark:text-slate-400">
-                {result.rightFile.format.toUpperCase()}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Diff Content */}
-      <div className="max-h-[600px] overflow-auto">
-        {filteredEntries.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-slate-500 dark:text-slate-400">
-              {searchQuery ? 'No matches found' : 'No differences to show'}
-            </div>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-200/50 dark:divide-slate-600/50">
-            {filteredEntries.map((entry, index) => (
-              <div
-                key={index}
-                className={`transition-all duration-200 ${getTypeColor(entry.type)}`}
+            <div className="relative">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  showFilters || filterType !== 'all'
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
               >
-                {/* Path Header */}
-                <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-700/50">
-                  <button
-                    onClick={() => togglePath(entry.path)}
-                    className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-slate-100 w-full text-left"
-                  >
-                    {expandedPaths.has(entry.path) ? (
-                      <ChevronDown className="w-4 h-4" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4" />
-                    )}
-                    {getTypeIcon(entry.type)}
-                    <span className="font-mono text-slate-900 dark:text-slate-100">{entry.path}</span>
-                  </button>
-                </div>
-
-                {/* Content */}
-                {expandedPaths.has(entry.path) && (
-                  <div className="grid grid-cols-2">
-                    {/* Left Side */}
-                    <div className={`px-6 py-4 border-r border-slate-200/50 dark:border-slate-600/50 ${getCellColor(entry.type, 'left')}`}>
-                      {entry.leftLine && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                          Line {entry.leftLine}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-center min-h-[80px]">
-                        <div className="w-full max-w-full">
-                          <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words text-center">
-                            {entry.type === 'added' ? (
-                              <span className="text-slate-400 dark:text-slate-500 italic">
-                                (not present)
-                              </span>
-                            ) : (
-                              formatValue(entry.leftValue)
-                            )}
-                          </pre>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Side */}
-                    <div className={`px-6 py-4 ${getCellColor(entry.type, 'right')}`}>
-                      {entry.rightLine && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                          Line {entry.rightLine}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-center min-h-[80px]">
-                        <div className="w-full max-w-full">
-                          <pre className="text-sm font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words text-center">
-                            {entry.type === 'removed' ? (
-                              <span className="text-slate-400 dark:text-slate-500 italic">
-                                (not present)
-                              </span>
-                            ) : (
-                              formatValue(entry.rightValue)
-                            )}
-                          </pre>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <Filter className="w-4 h-4" />
+                Filters
+                {filterType !== 'all' && (
+                  <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5">
+                    1
+                  </span>
                 )}
-              </div>
-            ))}
+              </button>
+              
+              {showFilters && (
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-xl z-30 animate-scale-in">
+                  <div className="p-2">
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 px-3 py-2">
+                      Filter by type:
+                    </div>
+                    {[
+                      { value: 'all', label: 'All Lines', count: filterCounts.all },
+                      { value: 'added', label: 'Added', count: filterCounts.added },
+                      { value: 'removed', label: 'Removed', count: filterCounts.removed },
+                      { value: 'changed', label: 'Changed', count: filterCounts.changed }
+                    ].map(({ value, label, count }) => (
+                      <button
+                        key={value}
+                        onClick={() => setFilterType(value as any)}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm rounded-lg transition-colors ${
+                          filterType === value
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        }`}
+                      >
+                        <span>{label}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all duration-200"
+              >
+                <X className="w-3 h-3" />
+                Clear
+              </button>
+            )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Footer */}
-      <div className="px-6 py-3 bg-slate-50/90 dark:bg-slate-700/90 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-600/50">
-        <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
-          <div className="flex items-center gap-4">
-            <span>Total Changes: {result.summary.total}</span>
-            <span>Similarity: {result.stats.similarities.toFixed(1)}%</span>
+        {/* File Headers */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-200/50 dark:border-slate-700/50">
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">
+              {result.leftFile.name}
+            </h4>
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              Format: {result.leftFile.format?.toUpperCase()} • Lines: {result.leftFile.content.split('\n').length}
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span>Showing {filteredEntries.length} of {diffEntries.length} entries</span>
-            <button
-              onClick={() => {
-                if (expandedPaths.size === filteredEntries.length) {
-                  setExpandedPaths(new Set());
-                } else {
-                  setExpandedPaths(new Set(filteredEntries.map(entry => entry.path)));
-                }
-              }}
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-            >
-              {expandedPaths.size === filteredEntries.length ? 'Collapse All' : 'Expand All'}
-            </button>
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-200/50 dark:border-slate-700/50">
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">
+              {result.rightFile.name}
+            </h4>
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              Format: {result.rightFile.format?.toUpperCase()} • Lines: {result.rightFile.content.split('\n').length}
+            </div>
+          </div>
+        </div>
+
+        {/* Diff Content */}
+        <div className="border border-slate-200/50 dark:border-slate-700/50 rounded-xl overflow-hidden">
+          {visibleLines.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                No Results Found
+              </h3>
+              <p className="text-slate-600 dark:text-slate-300 mb-4">
+                {hasActiveFilters ? 'Try adjusting your search terms or filters' : 'No differences found'}
+              </p>
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200 dark:divide-slate-700">
+              {visibleLines.map((line, index) => (
+                <div
+                  key={index}
+                  className={`grid grid-cols-12 gap-0 transition-colors ${getLineTypeClass(line.type)}`}
+                >
+                  {/* Line numbers */}
+                  <div className="col-span-1 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 font-mono bg-slate-50 dark:bg-slate-900/50 border-r border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                    {line.lineNumber}
+                  </div>
+                  
+                  {/* Change indicator */}
+                  <div className="col-span-1 px-2 py-2 flex items-center justify-center">
+                    {getLineIcon(line.type)}
+                  </div>
+                  
+                  {/* Left content */}
+                  <div className="col-span-5 px-4 py-2 font-mono text-sm text-slate-800 dark:text-slate-200 overflow-x-auto">
+                    <pre className="whitespace-pre-wrap">
+                      {highlightSearchTerm(line.leftContent)}
+                    </pre>
+                  </div>
+                  
+                  {/* Right content */}
+                  <div className="col-span-5 px-4 py-2 font-mono text-sm text-slate-800 dark:text-slate-200 overflow-x-auto border-l border-slate-200 dark:border-slate-700">
+                    <pre className="whitespace-pre-wrap">
+                      {highlightSearchTerm(line.rightContent)}
+                    </pre>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Statistics */}
+        <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-600 dark:text-slate-400">
+              Total lines compared: {lineDiff.length}
+            </span>
+            <div className="flex items-center gap-4">
+              <span className="text-emerald-600 dark:text-emerald-400">
+                +{lineDiff.filter(l => l.type === 'added').length}
+              </span>
+              <span className="text-red-600 dark:text-red-400">
+                -{lineDiff.filter(l => l.type === 'removed').length}
+              </span>
+              <span className="text-blue-600 dark:text-blue-400">
+                ~{lineDiff.filter(l => l.type === 'changed').length}
+              </span>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Click outside to close filter menu */}
+      {showFilters && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => setShowFilters(false)}
+        />
+      )}
     </div>
   );
 }
