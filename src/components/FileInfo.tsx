@@ -1,4 +1,3 @@
-import React from 'react';
 import { ConfigFile } from '@/types';
 import { File, Calendar, Hash } from 'lucide-react';
 import { getFormatLabel, getFormatIcon } from '@/utils/parsers';
