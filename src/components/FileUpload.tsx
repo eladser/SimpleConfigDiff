@@ -193,8 +193,7 @@ export function FileUpload({
             <input
               id={`folder-input-${title}`}
               type="file"
-              webkitdirectory=""
-              directory=""
+              {...({ webkitdirectory: 'true' } as any)}
               multiple
               onChange={handleFolderSelect}
               className="hidden"
