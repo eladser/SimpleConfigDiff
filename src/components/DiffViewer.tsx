@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ComparisonResult, DiffOptions } from '@/types';
 import { DiffSummary } from './DiffSummary';
 import { DiffTree } from './DiffTree';
@@ -100,7 +100,6 @@ export function DiffViewer({ result, options }: DiffViewerProps) {
         <DiffTree
           changes={result.changes}
           viewMode={viewMode}
-          options={options}
         />
       </div>
     </div>
