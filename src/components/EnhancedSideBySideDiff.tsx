@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { ComparisonResult } from '@/types';
+import { ComparisonResult } from '../types';
 import { 
   Plus, 
   Minus, 
