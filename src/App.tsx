@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
+import { EnhancedSideBySideDiff } from '@/components/EnhancedSideBySideDiff';
 import { Header } from '@/components/Header';
 import { FileUploadState, DiffOptions, ComparisonResult, ConfigFormat } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
@@ -22,7 +23,8 @@ import {
   Zap,
   ArrowRight,
   FileText,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 
 // Lazy load heavy components
@@ -107,10 +109,12 @@ const StatisticsCards = ({ comparisonResult }: { comparisonResult: ComparisonRes
   );
 };
 
-// Memoized view mode toggle
-const ViewModeToggle = ({ options, onDiffModeChange }: { 
+// Enhanced view mode toggle
+const ViewModeToggle = ({ options, onDiffModeChange, useEnhanced, setUseEnhanced }: { 
   options: DiffOptions; 
   onDiffModeChange: (mode: 'tree' | 'side-by-side' | 'unified') => void;
+  useEnhanced: boolean;
+  setUseEnhanced: (enhanced: boolean) => void;
 }) => {
   const viewModes = useMemo(() => [
     { mode: 'side-by-side', icon: SplitSquareHorizontal, label: 'Side-by-Side' },
@@ -119,21 +123,36 @@ const ViewModeToggle = ({ options, onDiffModeChange }: {
   ], []);
 
   return (
-    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/70 rounded-xl p-1">
-      {viewModes.map(({ mode, icon: Icon, label }) => (
-        <button
-          key={mode}
-          onClick={() => onDiffModeChange(mode as any)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-            options.diffMode === mode 
-              ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
-              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-          }`}
-        >
-          <Icon className="w-4 h-4" />
-          {label}
-        </button>
-      ))}
+    <div className="flex items-center gap-4">
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/70 rounded-xl p-1">
+        {viewModes.map(({ mode, icon: Icon, label }) => (
+          <button
+            key={mode}
+            onClick={() => onDiffModeChange(mode as any)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+              options.diffMode === mode 
+                ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+      
+      {/* Enhanced Mode Toggle */}
+      <button
+        onClick={() => setUseEnhanced(!useEnhanced)}
+        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+          useEnhanced 
+            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' 
+            : 'bg-slate-100 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+        }`}
+      >
+        <Sparkles className="w-4 h-4" />
+        Enhanced Mode
+      </button>
     </div>
   );
 };
@@ -174,6 +193,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [useEnhanced, setUseEnhanced] = useState(true);
 
   const handleFileUpload = useCallback((file: File, side: 'left' | 'right') => {
     const reader = new FileReader();
@@ -500,12 +520,17 @@ function App() {
               {/* Statistics Cards */}
               <StatisticsCards comparisonResult={comparisonResult} />
 
-              {/* View Mode Toggle */}
+              {/* Enhanced View Mode Toggle */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                   <span className="font-medium">View Mode:</span>
                 </div>
-                <ViewModeToggle options={options} onDiffModeChange={handleDiffModeChange} />
+                <ViewModeToggle 
+                  options={options} 
+                  onDiffModeChange={handleDiffModeChange}
+                  useEnhanced={useEnhanced}
+                  setUseEnhanced={setUseEnhanced}
+                />
               </div>
             </div>
 
@@ -519,12 +544,14 @@ function App() {
               </div>
             )}
 
-            {/* Diff Viewer */}
+            {/* Enhanced Diff Viewer */}
             <div className="animate-slide-up">
               {options.diffMode === 'side-by-side' ? (
-                <SideBySideDiff
-                  result={comparisonResult}
-                />
+                useEnhanced ? (
+                  <EnhancedSideBySideDiff result={comparisonResult} />
+                ) : (
+                  <SideBySideDiff result={comparisonResult} />
+                )
               ) : options.diffMode === 'unified' ? (
                 <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
                   <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">Unified Diff</h3>
