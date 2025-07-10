@@ -11,7 +11,7 @@ import {
   ChevronRight,
   ChevronDown,
   Code2,
-  Map,
+  Map as MapIcon,
   Eye,
   EyeOff
 } from 'lucide-react';
@@ -417,7 +417,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">View Mode:</span>
               <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-lg p-1">
                 {[
-                  { mode: 'hierarchical', icon: Map, label: 'Hierarchical' },
+                  { mode: 'hierarchical', icon: MapIcon, label: 'Hierarchical' },
                   { mode: 'semantic', icon: GitBranch, label: 'Semantic' },
                   { mode: 'raw', icon: Code2, label: 'Raw' }
                 ].map(({ mode, icon: Icon, label }) => (
@@ -459,7 +459,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
                       : 'bg-slate-100 dark:bg-slate-700/70 text-slate-600 dark:text-slate-400'
                   }`}
                 >
-                  <Map className="w-4 h-4" />
+                  <MapIcon className="w-4 h-4" />
                   Group by Path
                 </button>
               )}
