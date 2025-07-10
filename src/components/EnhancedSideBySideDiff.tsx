@@ -141,7 +141,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
     const semanticLines: DiffItem[] = [];
     
     // Group changes by path for better organization
-    const changesByPath = new Map();
+    const changesByPath = new Map<string, any>();
     result.changes.forEach((change) => {
       changesByPath.set(change.path, change);
     });
@@ -180,9 +180,9 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
 
   // Group items by path hierarchy
   const groupedDiff = useMemo(() => {
-    if (!groupByPath || viewMode !== 'hierarchical') return [];
+    if (!groupByPath || viewMode !== 'hierarchical') return [] as PathGroup[];
 
-    const groups = new Map();
+    const groups = new Map<string, PathGroup>();
     const items = [...semanticDiff];
 
     items.forEach(item => {
@@ -203,7 +203,8 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
       }
     });
 
-    return Array.from(groups.values()).sort((a: PathGroup, b: PathGroup) => {
+    const groupsArray = Array.from(groups.values()) as PathGroup[];
+    return groupsArray.sort((a: PathGroup, b: PathGroup) => {
       if (a.depth !== b.depth) return a.depth - b.depth;
       return a.basePath.localeCompare(b.basePath);
     });
@@ -589,7 +590,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
               {viewMode === 'hierarchical' && groupByPath ? (
-                (groupedDiff as PathGroup[]).map((group: PathGroup) => (
+                groupedDiff.map((group: PathGroup) => (
                   <div key={group.basePath}>
                     {renderPathHeader(group)}
                     {group.isExpanded && (
