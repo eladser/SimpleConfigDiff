@@ -8,7 +8,6 @@ import {
   Filter, 
   X, 
   GitBranch,
-  FileText,
   ChevronRight,
   ChevronDown,
   Code2,
@@ -76,7 +75,7 @@ const parseXmlPath = (path: string): { element: string; attribute?: string; full
 
 // Helper function to get breadcrumb path
 const getBreadcrumbPath = (pathParts: string[]): string => {
-  return pathParts.map((part, index) => {
+  return pathParts.map((part) => {
     const parsed = parseXmlPath(part);
     return parsed.element + (parsed.attribute ? `[${parsed.attribute}]` : '');
   }).join(' › ');
@@ -143,12 +142,12 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
     
     // Group changes by path for better organization
     const changesByPath = new Map<string, typeof result.changes[0]>();
-    result.changes.forEach(change => {
+    result.changes.forEach((change) => {
       changesByPath.set(change.path, change);
     });
 
     // Create semantic comparison entries with enhanced path info
-    changesByPath.forEach((change, path) => {
+    changesByPath.forEach((change: any, path: string) => {
       const pathParts = path.split('.');
       const xmlInfo = parseXmlPath(path);
       
@@ -198,7 +197,10 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
         });
       }
       
-      groups.get(parentPath)!.items.push(item);
+      const group = groups.get(parentPath);
+      if (group) {
+        group.items.push(item);
+      }
     });
 
     return Array.from(groups.values()).sort((a, b) => {
@@ -587,7 +589,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
               {viewMode === 'hierarchical' && groupByPath ? (
-                groupedDiff.map((group) => (
+                groupedDiff.map((group: PathGroup) => (
                   <div key={group.basePath}>
                     {renderPathHeader(group)}
                     {group.isExpanded && (
