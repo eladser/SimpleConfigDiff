@@ -141,7 +141,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
     const semanticLines: DiffItem[] = [];
     
     // Group changes by path for better organization
-    const changesByPath = new Map<string, typeof result.changes[0]>();
+    const changesByPath = new Map();
     result.changes.forEach((change) => {
       changesByPath.set(change.path, change);
     });
@@ -169,7 +169,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
     });
 
     // Sort by path for consistent ordering
-    semanticLines.sort((a, b) => {
+    semanticLines.sort((a: DiffItem, b: DiffItem) => {
       // First by depth, then by path
       if (a.depth !== b.depth) return a.depth - b.depth;
       return a.path.localeCompare(b.path);
@@ -180,9 +180,9 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
 
   // Group items by path hierarchy
   const groupedDiff = useMemo(() => {
-    if (!groupByPath || viewMode !== 'hierarchical') return semanticDiff;
+    if (!groupByPath || viewMode !== 'hierarchical') return [];
 
-    const groups = new Map<string, PathGroup>();
+    const groups = new Map();
     const items = [...semanticDiff];
 
     items.forEach(item => {
@@ -203,7 +203,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
       }
     });
 
-    return Array.from(groups.values()).sort((a, b) => {
+    return Array.from(groups.values()).sort((a: PathGroup, b: PathGroup) => {
       if (a.depth !== b.depth) return a.depth - b.depth;
       return a.basePath.localeCompare(b.basePath);
     });
@@ -212,7 +212,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
   // Memoized filtered diff
   const filteredDiff = useMemo(() => {
     let filtered = viewMode === 'hierarchical' && groupByPath ? 
-      groupedDiff.flatMap(group => group.items) : 
+      groupedDiff.flatMap((group: PathGroup) => group.items) : 
       semanticDiff;
 
     // Apply type filter
@@ -589,7 +589,7 @@ export function EnhancedSideBySideDiff({ result }: SideBySideDiffProps) {
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
               {viewMode === 'hierarchical' && groupByPath ? (
-                groupedDiff.map((group: PathGroup) => (
+                (groupedDiff as PathGroup[]).map((group: PathGroup) => (
                   <div key={group.basePath}>
                     {renderPathHeader(group)}
                     {group.isExpanded && (
