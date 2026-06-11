@@ -76,6 +76,10 @@ npm run lint
 
 React 19, Vite 8, Tailwind 4, TypeScript. Parsers: js-yaml, fast-xml-parser, ini, smol-toml.
 
+## Support
+
+If this tool saved you some time, you can [buy me a coffee](https://ko-fi.com/eladser).
+
 ## License
 
 MIT

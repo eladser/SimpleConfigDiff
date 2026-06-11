@@ -38,6 +38,7 @@
     "url": "git+https://github.com/eladser/SimpleConfigDiff.git"
   },
   "bugs": "https://github.com/eladser/SimpleConfigDiff/issues",
+  "funding": "https://ko-fi.com/eladser",
   "engines": {
     "node": ">=18"
   },
