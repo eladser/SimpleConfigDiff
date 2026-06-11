@@ -151,15 +151,21 @@ export class PathMatcher {
   }
 
   private static globMatch(path: string, pattern: string): boolean {
-    // Simple glob implementation
+    // Escape regex specials first, then expand glob tokens. ** goes through a
+    // placeholder so the single-* replace can't eat half of it.
+    const DOUBLE_STAR = '\x00';
     const regexPattern = pattern
-      .replace(/\*\*/g, '.*')  // ** matches any number of path segments
-      .replace(/\*/g, '[^.]*')  // * matches any characters except dots
-      .replace(/\?/g, '.')      // ? matches any single character
-      .replace(/\./g, '\\.');   // Escape dots
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .split('**').join(DOUBLE_STAR)
+      .replace(/\*/g, '[^.]*')             // * stays within one path segment
+      .split(DOUBLE_STAR).join('.*')       // ** crosses segments
+      .replace(/\?/g, '[^.]');
 
-    const regex = new RegExp(`^${regexPattern}$`);
-    return regex.test(path);
+    try {
+      return new RegExp(`^${regexPattern}$`).test(path);
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -169,7 +175,10 @@ export class ValueTransformer {
    */
   static transform(value: any, transformations: ValueTransformation[]): any {
     if (typeof value !== 'string') return value;
-    
+    // Don't run user-supplied regexes on huge values — a backtracking pattern
+    // would freeze the tab
+    if (value.length > 10000) return value;
+
     let transformed = value;
     
     for (const transformation of transformations) {

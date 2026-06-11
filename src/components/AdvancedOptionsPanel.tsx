@@ -1,17 +1,6 @@
 import React, { useState } from 'react';
 import { DiffOptions, PathRule, ValueTransformation } from '@/types';
-import { 
-  Settings, 
-  Plus, 
-  Trash2, 
-  ChevronDown,
-  ChevronRight,
-  HelpCircle,
-  Eye,
-  Zap,
-  Shield,
-  Filter
-} from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, X } from 'lucide-react';
 
 interface AdvancedOptionsPanelProps {
   options: DiffOptions;
@@ -20,602 +9,308 @@ interface AdvancedOptionsPanelProps {
 
 export function AdvancedOptionsPanel({ options, onOptionsChange }: AdvancedOptionsPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basic']));
+  const [newIgnoreKey, setNewIgnoreKey] = useState('');
 
   const toggleSection = (section: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(section)) {
-      newExpanded.delete(section);
+    const next = new Set(expandedSections);
+    if (next.has(section)) {
+      next.delete(section);
     } else {
-      newExpanded.add(section);
+      next.add(section);
     }
-    setExpandedSections(newExpanded);
+    setExpandedSections(next);
+  };
+
+  const addIgnoreKey = () => {
+    const key = newIgnoreKey.trim();
+    if (key && !options.ignoreKeys.includes(key)) {
+      onOptionsChange({ ...options, ignoreKeys: [...options.ignoreKeys, key] });
+    }
+    setNewIgnoreKey('');
   };
 
   const addPathRule = () => {
-    const newRule: PathRule = {
-      pattern: '',
-      type: 'glob',
-      action: 'ignore',
-      description: ''
-    };
-    onOptionsChange({
-      ...options,
-      pathRules: [...options.pathRules, newRule]
-    });
+    const newRule: PathRule = { pattern: '', type: 'glob', action: 'ignore', description: '' };
+    onOptionsChange({ ...options, pathRules: [...options.pathRules, newRule] });
   };
 
   const updatePathRule = (index: number, rule: PathRule) => {
     const newRules = [...options.pathRules];
     newRules[index] = rule;
-    onOptionsChange({
-      ...options,
-      pathRules: newRules
-    });
+    onOptionsChange({ ...options, pathRules: newRules });
   };
 
   const removePathRule = (index: number) => {
-    const newRules = options.pathRules.filter((_, i) => i !== index);
-    onOptionsChange({
-      ...options,
-      pathRules: newRules
-    });
+    onOptionsChange({ ...options, pathRules: options.pathRules.filter((_, i) => i !== index) });
   };
 
   const addValueTransformation = () => {
-    const newTransformation: ValueTransformation = {
-      name: '',
-      pattern: '',
-      replacement: '',
-      enabled: true,
-      description: ''
-    };
-    onOptionsChange({
-      ...options,
-      valueTransformations: [...options.valueTransformations, newTransformation]
-    });
+    const t: ValueTransformation = { name: '', pattern: '', replacement: '', enabled: true, description: '' };
+    onOptionsChange({ ...options, valueTransformations: [...options.valueTransformations, t] });
   };
 
-  const updateValueTransformation = (index: number, transformation: ValueTransformation) => {
-    const newTransformations = [...options.valueTransformations];
-    newTransformations[index] = transformation;
-    onOptionsChange({
-      ...options,
-      valueTransformations: newTransformations
-    });
+  const updateValueTransformation = (index: number, t: ValueTransformation) => {
+    const next = [...options.valueTransformations];
+    next[index] = t;
+    onOptionsChange({ ...options, valueTransformations: next });
   };
 
   const removeValueTransformation = (index: number) => {
-    const newTransformations = options.valueTransformations.filter((_, i) => i !== index);
     onOptionsChange({
       ...options,
-      valueTransformations: newTransformations
+      valueTransformations: options.valueTransformations.filter((_, i) => i !== index)
     });
   };
 
   const presetRules = [
-    {
-      name: 'Ignore Timestamps',
-      rule: { pattern: '*.timestamp', type: 'glob' as const, action: 'ignore' as const, description: 'Ignore timestamp fields' }
-    },
-    {
-      name: 'Ignore Passwords',
-      rule: { pattern: '*.password', type: 'glob' as const, action: 'ignore' as const, description: 'Ignore password fields' }
-    },
-    {
-      name: 'Ignore Temp Files',
-      rule: { pattern: '/^temp_/', type: 'regex' as const, action: 'ignore' as const, description: 'Ignore temporary files' }
-    }
+    { name: 'timestamps', rule: { pattern: '*.timestamp', type: 'glob' as const, action: 'ignore' as const, description: 'Ignore timestamp fields' } },
+    { name: 'passwords', rule: { pattern: '*.password', type: 'glob' as const, action: 'ignore' as const, description: 'Ignore password fields' } },
+    { name: 'temp keys', rule: { pattern: '/^temp_/', type: 'regex' as const, action: 'ignore' as const, description: 'Ignore temporary keys' } }
   ];
 
   const presetTransformations = [
-    {
-      name: 'Normalize URLs',
-      transformation: { 
-        name: 'Normalize URLs', 
-        pattern: 'https?://', 
-        replacement: 'http://', 
-        enabled: true, 
-        description: 'Convert HTTPS to HTTP for comparison' 
-      }
-    },
-    {
-      name: 'Remove Whitespace',
-      transformation: { 
-        name: 'Remove Whitespace', 
-        pattern: '\\s+', 
-        replacement: ' ', 
-        enabled: true, 
-        description: 'Normalize whitespace' 
-      }
-    }
+    { name: 'normalize URLs', transformation: { name: 'Normalize URLs', pattern: 'https?://', replacement: 'http://', enabled: true, description: 'Treat http and https as equal' } },
+    { name: 'collapse whitespace', transformation: { name: 'Collapse whitespace', pattern: '\\s+', replacement: ' ', enabled: true, description: 'Normalize runs of whitespace' } }
+  ];
+
+  const basicToggles: Array<{ key: keyof DiffOptions; label: string; help: string }> = [
+    { key: 'caseSensitive', label: 'Case sensitive', help: 'Consider case when comparing string values' },
+    { key: 'sortKeys', label: 'Sort keys', help: 'Sort object keys before comparison' },
+    { key: 'flattenKeys', label: 'Flatten keys', help: 'Flatten nested objects into dot notation' },
+    { key: 'semanticComparison', label: 'Semantic comparison', help: "Treat 'true' and true as equal" },
+    { key: 'ignoreWhitespace', label: 'Ignore whitespace', help: 'Ignore whitespace differences in values' },
+    { key: 'ignoreComments', label: 'Ignore comments', help: 'Strip comments before comparing' }
   ];
 
   return (
-    <div className="card">
-      <div className="flex items-center gap-2 mb-4">
-        <Settings className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Advanced Comparison Options</h2>
-      </div>
+    <div className="bg-surface border border-border rounded-lg divide-y divide-border">
+      <Section
+        title="Comparison"
+        expanded={expandedSections.has('basic')}
+        onToggle={() => toggleSection('basic')}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5">
+          {basicToggles.map(({ key, label, help }) => (
+            <Toggle
+              key={key}
+              label={label}
+              help={help}
+              checked={Boolean(options[key])}
+              onChange={(checked) => onOptionsChange({ ...options, [key]: checked })}
+            />
+          ))}
+        </div>
 
-      <div className="space-y-4">
-        {/* Basic Options */}
-        <OptionSection
-          title="Basic Options"
-          icon={<Settings className="w-4 h-4" />}
-          expanded={expandedSections.has('basic')}
-          onToggle={() => toggleSection('basic')}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <OptionToggle
-                label="Case Sensitive"
-                checked={options.caseSensitive}
-                onChange={(checked) => onOptionsChange({ ...options, caseSensitive: checked })}
-                helpText="Consider case when comparing string values"
-              />
-              
-              <OptionToggle
-                label="Sort Keys"
-                checked={options.sortKeys}
-                onChange={(checked) => onOptionsChange({ ...options, sortKeys: checked })}
-                helpText="Sort object keys before comparison"
-              />
-              
-              <OptionToggle
-                label="Flatten Keys"
-                checked={options.flattenKeys}
-                onChange={(checked) => onOptionsChange({ ...options, flattenKeys: checked })}
-                helpText="Flatten nested objects into dot notation"
-              />
-            </div>
-            
-            <div className="space-y-3">
-              <OptionToggle
-                label="Semantic Comparison"
-                checked={options.semanticComparison}
-                icon={<Zap className="w-4 h-4" />}
-                onChange={(checked) => onOptionsChange({ ...options, semanticComparison: checked })}
-                helpText="Understand that 'true' and true are equivalent"
-              />
-              
-              <OptionToggle
-                label="Ignore Whitespace"
-                checked={options.ignoreWhitespace}
-                onChange={(checked) => onOptionsChange({ ...options, ignoreWhitespace: checked })}
-                helpText="Ignore whitespace differences in string values"
-              />
-              
-              <OptionToggle
-                label="Ignore Comments"
-                checked={options.ignoreComments}
-                onChange={(checked) => onOptionsChange({ ...options, ignoreComments: checked })}
-                helpText="Ignore comments when comparing files"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Ignored Keys
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {options.ignoreKeys.map((key, index) => (
-                <span
-                  key={index}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-md text-sm"
+        <div className="mt-4">
+          <label className="block text-xs text-faint mb-1.5">Ignored keys</label>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {options.ignoreKeys.map((key, index) => (
+              <span
+                key={index}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-elevated border border-border rounded font-mono text-xs text-fg"
+              >
+                {key}
+                <button
+                  onClick={() => onOptionsChange({ ...options, ignoreKeys: options.ignoreKeys.filter((_, i) => i !== index) })}
+                  className="text-faint hover:text-removed transition-colors"
+                  aria-label={`Stop ignoring ${key}`}
                 >
-                  {key}
-                  <button
-                    onClick={() => {
-                      const newKeys = options.ignoreKeys.filter((_, i) => i !== index);
-                      onOptionsChange({ ...options, ignoreKeys: newKeys });
-                    }}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-              <button
-                onClick={() => {
-                  const key = prompt('Enter key to ignore:');
-                  if (key) {
-                    onOptionsChange({ ...options, ignoreKeys: [...options.ignoreKeys, key] });
-                  }
-                }}
-                className="inline-flex items-center gap-1 px-2 py-1 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <Plus className="w-3 h-3" />
-                Add Key
-              </button>
-            </div>
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+            <input
+              type="text"
+              value={newIgnoreKey}
+              onChange={(e) => setNewIgnoreKey(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addIgnoreKey(); }}
+              onBlur={addIgnoreKey}
+              placeholder="key.path"
+              className="w-28 px-2 py-0.5 font-mono text-xs border border-dashed border-border rounded bg-transparent text-fg placeholder:text-faint focus:border-accent"
+            />
           </div>
-        </OptionSection>
+        </div>
+      </Section>
 
-        {/* Diff Display Options */}
-        <OptionSection
-          title="Display Options"
-          icon={<Eye className="w-4 h-4" />}
-          expanded={expandedSections.has('display')}
-          onToggle={() => toggleSection('display')}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Diff Mode
-              </label>
-              <select
-                value={options.diffMode}
-                onChange={(e) => onOptionsChange({ ...options, diffMode: e.target.value as any })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="tree">Tree View</option>
-                <option value="side-by-side">Side-by-Side</option>
-                <option value="unified">Unified Diff</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Context Lines
-              </label>
+      <Section
+        title="Path rules"
+        expanded={expandedSections.has('pathRules')}
+        onToggle={() => toggleSection('pathRules')}
+        count={options.pathRules.length}
+      >
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          <span className="text-xs text-faint mr-1">Presets:</span>
+          {presetRules.map((preset) => (
+            <button
+              key={preset.name}
+              onClick={() => onOptionsChange({ ...options, pathRules: [...options.pathRules, preset.rule] })}
+              className="px-2 py-0.5 font-mono text-xs border border-border rounded text-muted hover:text-fg hover:border-border-strong transition-colors"
+            >
+              {preset.name}
+            </button>
+          ))}
+          <button onClick={addPathRule} className="ml-auto btn-secondary text-xs">
+            <Plus className="w-3 h-3" />
+            Rule
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {options.pathRules.map((rule, index) => (
+            <div key={index} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center">
               <input
-                type="number"
-                min="0"
-                max="10"
-                value={options.contextLines}
-                onChange={(e) => onOptionsChange({ ...options, contextLines: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                type="text"
+                value={rule.pattern}
+                onChange={(e) => updatePathRule(index, { ...rule, pattern: e.target.value })}
+                placeholder="*.timestamp"
+                className="px-2.5 py-1.5 font-mono text-sm border border-border rounded bg-bg text-fg placeholder:text-faint focus:border-accent"
               />
-            </div>
-          </div>
-          
-          <div className="mt-4 space-y-3">
-            <OptionToggle
-              label="Show Line Numbers"
-              checked={options.showLineNumbers}
-              onChange={(checked) => onOptionsChange({ ...options, showLineNumbers: checked })}
-              helpText="Display line numbers in diff view"
-            />
-            
-            <OptionToggle
-              label="Minimal Diff"
-              checked={options.minimalDiff}
-              onChange={(checked) => onOptionsChange({ ...options, minimalDiff: checked })}
-              helpText="Show only changed lines without context"
-            />
-          </div>
-        </OptionSection>
-
-        {/* Path Rules */}
-        <OptionSection
-          title="Path Rules"
-          icon={<Filter className="w-4 h-4" />}
-          expanded={expandedSections.has('pathRules')}
-          onToggle={() => toggleSection('pathRules')}
-        >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Configure rules for handling specific paths during comparison
-              </p>
-              <button
-                onClick={addPathRule}
-                className="btn btn-secondary text-sm"
+              <select
+                value={rule.type}
+                onChange={(e) => updatePathRule(index, { ...rule, type: e.target.value as PathRule['type'] })}
+                className="px-2 py-1.5 font-mono text-xs border border-border rounded bg-elevated text-fg focus:border-accent"
               >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Rule
+                <option value="glob">glob</option>
+                <option value="regex">regex</option>
+                <option value="exact">exact</option>
+              </select>
+              <select
+                value={rule.action}
+                onChange={(e) => updatePathRule(index, { ...rule, action: e.target.value as PathRule['action'] })}
+                className="px-2 py-1.5 font-mono text-xs border border-border rounded bg-elevated text-fg focus:border-accent"
+              >
+                <option value="ignore">ignore</option>
+                <option value="semantic">semantic</option>
+                <option value="strict">strict</option>
+              </select>
+              <button
+                onClick={() => removePathRule(index)}
+                className="p-1.5 text-faint hover:text-removed transition-colors"
+                aria-label="Remove rule"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-            
-            {/* Preset Rules */}
-            <div className="flex flex-wrap gap-2">
-              {presetRules.map((preset, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    onOptionsChange({
-                      ...options,
-                      pathRules: [...options.pathRules, preset.rule]
-                    });
-                  }}
-                  className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                >
-                  {preset.name}
-                </button>
-              ))}
-            </div>
-            
-            {options.pathRules.map((rule, index) => (
-              <PathRuleEditor
-                key={index}
-                rule={rule}
-                onUpdate={(updatedRule) => updatePathRule(index, updatedRule)}
-                onRemove={() => removePathRule(index)}
-              />
-            ))}
-          </div>
-        </OptionSection>
+          ))}
+        </div>
+      </Section>
 
-        {/* Value Transformations */}
-        <OptionSection
-          title="Value Transformations"
-          icon={<Shield className="w-4 h-4" />}
-          expanded={expandedSections.has('transformations')}
-          onToggle={() => toggleSection('transformations')}
-        >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Transform values before comparison using regex patterns
-              </p>
+      <Section
+        title="Value transforms"
+        expanded={expandedSections.has('transformations')}
+        onToggle={() => toggleSection('transformations')}
+        count={options.valueTransformations.length}
+      >
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          <span className="text-xs text-faint mr-1">Presets:</span>
+          {presetTransformations.map((preset) => (
+            <button
+              key={preset.name}
+              onClick={() => onOptionsChange({ ...options, valueTransformations: [...options.valueTransformations, preset.transformation] })}
+              className="px-2 py-0.5 font-mono text-xs border border-border rounded text-muted hover:text-fg hover:border-border-strong transition-colors"
+            >
+              {preset.name}
+            </button>
+          ))}
+          <button onClick={addValueTransformation} className="ml-auto btn-secondary text-xs">
+            <Plus className="w-3 h-3" />
+            Transform
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {options.valueTransformations.map((t, index) => (
+            <div key={index} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+              <input
+                type="text"
+                value={t.pattern}
+                onChange={(e) => updateValueTransformation(index, { ...t, pattern: e.target.value })}
+                placeholder="pattern (regex)"
+                className="px-2.5 py-1.5 font-mono text-sm border border-border rounded bg-bg text-fg placeholder:text-faint focus:border-accent"
+              />
+              <input
+                type="text"
+                value={t.replacement}
+                onChange={(e) => updateValueTransformation(index, { ...t, replacement: e.target.value })}
+                placeholder="replacement"
+                className="px-2.5 py-1.5 font-mono text-sm border border-border rounded bg-bg text-fg placeholder:text-faint focus:border-accent"
+              />
               <button
-                onClick={addValueTransformation}
-                className="btn btn-secondary text-sm"
+                onClick={() => updateValueTransformation(index, { ...t, enabled: !t.enabled })}
+                className={`px-2 py-1 font-mono text-xs rounded border transition-colors ${
+                  t.enabled
+                    ? 'border-accent/40 text-accent'
+                    : 'border-border text-faint'
+                }`}
               >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Transformation
+                {t.enabled ? 'on' : 'off'}
+              </button>
+              <button
+                onClick={() => removeValueTransformation(index)}
+                className="p-1.5 text-faint hover:text-removed transition-colors"
+                aria-label="Remove transform"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-            
-            {/* Preset Transformations */}
-            <div className="flex flex-wrap gap-2">
-              {presetTransformations.map((preset, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    onOptionsChange({
-                      ...options,
-                      valueTransformations: [...options.valueTransformations, preset.transformation]
-                    });
-                  }}
-                  className="px-2 py-1 text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30"
-                >
-                  {preset.name}
-                </button>
-              ))}
-            </div>
-            
-            {options.valueTransformations.map((transformation, index) => (
-              <ValueTransformationEditor
-                key={index}
-                transformation={transformation}
-                onUpdate={(updatedTransformation) => updateValueTransformation(index, updatedTransformation)}
-                onRemove={() => removeValueTransformation(index)}
-              />
-            ))}
-          </div>
-        </OptionSection>
-      </div>
+          ))}
+        </div>
+      </Section>
     </div>
   );
 }
 
-interface OptionSectionProps {
+function Section({ title, expanded, onToggle, count, children }: {
   title: string;
-  icon: React.ReactNode;
   expanded: boolean;
   onToggle: () => void;
+  count?: number;
   children: React.ReactNode;
-}
-
-function OptionSection({ title, icon, expanded, onToggle, children }: OptionSectionProps) {
+}) {
   return (
-    <div className="border border-gray-200 dark:border-gray-600 rounded-lg">
+    <div>
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-2 p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 rounded-t-lg transition-colors"
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-elevated/40 transition-colors"
       >
-        {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        {icon}
-        <span className="font-medium text-gray-900 dark:text-white">{title}</span>
+        {expanded ? (
+          <ChevronDown className="w-3.5 h-3.5 text-faint" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 text-faint" />
+        )}
+        <span className="text-sm font-medium text-fg">{title}</span>
+        {typeof count === 'number' && count > 0 && (
+          <span className="font-mono text-xs text-faint">{count}</span>
+        )}
       </button>
-      {expanded && (
-        <div className="p-3 border-t border-gray-200 dark:border-gray-600">
-          {children}
-        </div>
-      )}
+      {expanded && <div className="px-4 pb-4 pt-1">{children}</div>}
     </div>
   );
 }
 
-interface OptionToggleProps {
+function Toggle({ label, checked, onChange, help }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
-  helpText?: string;
-  icon?: React.ReactNode;
-}
-
-function OptionToggle({ label, checked, onChange, helpText, icon }: OptionToggleProps) {
+  help?: string;
+}) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        {icon}
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {label}
-        </label>
-        {helpText && (
-          <div className="relative group">
-            <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-              {helpText}
-            </div>
-          </div>
-        )}
-      </div>
+    <div className="flex items-center justify-between" title={help}>
+      <span className="text-sm text-muted">{label}</span>
       <button
+        role="switch"
+        aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          checked ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          checked ? 'bg-accent' : 'bg-border-strong'
         }`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            checked ? 'translate-x-6' : 'translate-x-1'
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-bg transition-transform ${
+            checked ? 'translate-x-4.5' : 'translate-x-0.75'
           }`}
         />
       </button>
-    </div>
-  );
-}
-
-interface PathRuleEditorProps {
-  rule: PathRule;
-  onUpdate: (rule: PathRule) => void;
-  onRemove: () => void;
-}
-
-function PathRuleEditor({ rule, onUpdate, onRemove }: PathRuleEditorProps) {
-  return (
-    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Pattern
-          </label>
-          <input
-            type="text"
-            value={rule.pattern}
-            onChange={(e) => onUpdate({ ...rule, pattern: e.target.value })}
-            placeholder="e.g., *.timestamp"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Type
-          </label>
-          <select
-            value={rule.type}
-            onChange={(e) => onUpdate({ ...rule, type: e.target.value as any })}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="glob">Glob</option>
-            <option value="regex">Regex</option>
-            <option value="exact">Exact</option>
-          </select>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Action
-          </label>
-          <select
-            value={rule.action}
-            onChange={(e) => onUpdate({ ...rule, action: e.target.value as any })}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="ignore">Ignore</option>
-            <option value="semantic">Semantic</option>
-            <option value="strict">Strict</option>
-          </select>
-        </div>
-        
-        <div className="flex items-end">
-          <button
-            onClick={onRemove}
-            className="w-full px-3 py-2 text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 border border-red-200 dark:border-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
-          >
-            <Trash2 className="w-4 h-4 mx-auto" />
-          </button>
-        </div>
-      </div>
-      
-      <div className="mt-3">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Description
-        </label>
-        <input
-          type="text"
-          value={rule.description || ''}
-          onChange={(e) => onUpdate({ ...rule, description: e.target.value })}
-          placeholder="Optional description"
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-        />
-      </div>
-    </div>
-  );
-}
-
-interface ValueTransformationEditorProps {
-  transformation: ValueTransformation;
-  onUpdate: (transformation: ValueTransformation) => void;
-  onRemove: () => void;
-}
-
-function ValueTransformationEditor({ transformation, onUpdate, onRemove }: ValueTransformationEditorProps) {
-  return (
-    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-      <div className="flex items-center justify-between mb-3">
-        <input
-          type="text"
-          value={transformation.name}
-          onChange={(e) => onUpdate({ ...transformation, name: e.target.value })}
-          placeholder="Transformation name"
-          className="font-medium text-sm bg-transparent border-none outline-none text-gray-900 dark:text-white"
-        />
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onUpdate({ ...transformation, enabled: !transformation.enabled })}
-            className={`px-2 py-1 text-xs rounded ${
-              transformation.enabled 
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300' 
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-            }`}
-          >
-            {transformation.enabled ? 'Enabled' : 'Disabled'}
-          </button>
-          <button
-            onClick={onRemove}
-            className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Pattern (Regex)
-          </label>
-          <input
-            type="text"
-            value={transformation.pattern}
-            onChange={(e) => onUpdate({ ...transformation, pattern: e.target.value })}
-            placeholder="e.g., https?://"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Replacement
-          </label>
-          <input
-            type="text"
-            value={transformation.replacement}
-            onChange={(e) => onUpdate({ ...transformation, replacement: e.target.value })}
-            placeholder="e.g., http://"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
-          />
-        </div>
-      </div>
-      
-      <div className="mt-3">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Description
-        </label>
-        <input
-          type="text"
-          value={transformation.description || ''}
-          onChange={(e) => onUpdate({ ...transformation, description: e.target.value })}
-          placeholder="Optional description"
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-        />
-      </div>
     </div>
   );
 }

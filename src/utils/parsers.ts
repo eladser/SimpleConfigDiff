@@ -70,22 +70,9 @@ export function detectFormat(filename: string, content: string): ConfigFormat {
 
 function detectFormatByContent(content: string): ConfigFormat {
   const trimmed = content.trim();
-  
-  // Template detection
-  if (trimmed.includes('{%') || trimmed.includes('{#') || trimmed.includes('|')) {
-    return 'jinja2';
-  }
-  
-  if (trimmed.includes('{{#') || trimmed.includes('{{!') || trimmed.includes('{{>')) {
-    return 'handlebars';
-  }
-  
-  if (trimmed.includes('{{') && trimmed.includes('}}') && !trimmed.includes('{%')) {
-    return 'mustache';
-  }
-  
-  // JSON detection
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+
+  // JSON detection — before template heuristics, which misfire on '|' inside strings
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
       (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
     try {
       JSON.parse(trimmed);
@@ -94,10 +81,23 @@ function detectFormatByContent(content: string): ConfigFormat {
       // Not JSON, continue
     }
   }
-  
+
   // XML detection
   if (trimmed.startsWith('<') && trimmed.includes('>')) {
     return 'xml';
+  }
+
+  // Template detection
+  if (trimmed.includes('{%') || trimmed.includes('{#')) {
+    return 'jinja2';
+  }
+
+  if (trimmed.includes('{{#') || trimmed.includes('{{!') || trimmed.includes('{{>')) {
+    return 'handlebars';
+  }
+
+  if (trimmed.includes('{{') && trimmed.includes('}}') && !trimmed.includes('{%')) {
+    return 'mustache';
   }
   
   // CSV detection (simple heuristic)
@@ -230,13 +230,14 @@ export function parseConfig(content: string, format: ConfigFormat, filename: str
       return parseCSV(content);
     case 'jinja2':
     case 'handlebars':
-    case 'mustache':
+    case 'mustache': {
       const templateResult = parseTemplate(content, filename);
       return {
         data: templateResult ? templateResult.variables : {},
         format,
         error: templateResult ? undefined : 'Failed to parse template'
       };
+    }
     case 'config':
       return parseINI(content); // Default to INI for generic config files
     default:
@@ -298,31 +299,6 @@ export function getFormatDescription(format: ConfigFormat): string {
   };
   
   return descriptions[format] || 'Unknown format';
-}
-
-// Add missing exports that are being used in components
-export function getFormatLabel(format: ConfigFormat): string {
-  return formatNames[format] || format.toUpperCase();
-}
-
-export function getFormatIcon(format: ConfigFormat): string {
-  const icons: Record<ConfigFormat, string> = {
-    json: '{}',
-    yaml: '📄',
-    xml: '</>',
-    config: '⚙️',
-    ini: '📝',
-    toml: '🔧',
-    env: '🌍',
-    hcl: '🏗️',
-    properties: '☕',
-    csv: '📊',
-    jinja2: '🔧',
-    handlebars: '🔧',
-    mustache: '🔧'
-  };
-  
-  return icons[format] || '📄';
 }
 
 export function getSupportedExtensions(): string[] {

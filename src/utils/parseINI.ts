@@ -31,6 +31,6 @@ export function parseINI(content: string): ParsedConfig {
       format: 'ini'
     };
   } catch (error) {
-    throw new Error(`Invalid INI: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Invalid INI: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error });
   }
 }

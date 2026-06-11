@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { program } = require('commander');
+const { version } = require('../package.json');
 
 // Configuration formats mapping
 const FORMAT_EXTENSIONS = {
@@ -72,37 +73,31 @@ function parseConfig(content, format) {
       case 'json':
         return JSON.parse(content);
       case 'yaml':
-        // Would need yaml parser in real implementation
-        return JSON.parse(content); // Fallback
-      case 'xml':
-        // Would need xml parser in real implementation
-        return { content }; // Fallback
+        return require('js-yaml').load(content) || {};
+      case 'xml': {
+        const { XMLParser } = require('fast-xml-parser');
+        return new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' }).parse(content);
+      }
       case 'ini':
-        // Would need ini parser in real implementation
-        return { content }; // Fallback
+      case 'config':
+        return require('ini').parse(content);
       case 'toml':
-        // Would need toml parser in real implementation
-        return { content }; // Fallback
+        return require('smol-toml').parse(content);
+      case 'hcl':
       case 'env':
-        // Parse environment variables
-        const env = {};
+      case 'properties': {
+        // key=value lines; # and ; comments
+        const obj = {};
         content.split('\n').forEach(line => {
-          const [key, ...valueParts] = line.split('=');
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith(';')) return;
+          const [key, ...valueParts] = trimmed.split('=');
           if (key && valueParts.length > 0) {
-            env[key.trim()] = valueParts.join('=').trim();
+            obj[key.trim()] = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
           }
         });
-        return env;
-      case 'properties':
-        // Parse properties files
-        const props = {};
-        content.split('\n').forEach(line => {
-          const [key, ...valueParts] = line.split('=');
-          if (key && valueParts.length > 0) {
-            props[key.trim()] = valueParts.join('=').trim();
-          }
-        });
-        return props;
+        return obj;
+      }
       default:
         return { content };
     }
@@ -164,12 +159,14 @@ function formatOutput(changes, format, options) {
     case 'json':
       return JSON.stringify(changes, null, 2);
     
-    case 'csv':
+    case 'csv': {
+      const cell = (v) => `"${String(v != null ? v : '').replace(/"/g, '""')}"`;
       const csvHeader = 'Path,Type,Old Value,New Value\n';
-      const csvRows = changes.map(change => 
-        `"${change.path}","${change.type}","${change.oldValue || ''}","${change.newValue || ''}"`
+      const csvRows = changes.map(change =>
+        [cell(change.path), cell(change.type), cell(change.oldValue), cell(change.newValue)].join(',')
       ).join('\n');
       return csvHeader + csvRows;
+    }
     
     case 'table':
       // Simple table format for terminal
@@ -212,44 +209,36 @@ ${colorize('Total:', 'bright')} ${changes.length}
  * Main comparison function
  */
 async function compareFiles(leftPath, rightPath, options) {
-  try {
-    // Read files
-    const leftContent = fs.readFileSync(leftPath, 'utf8');
-    const rightContent = fs.readFileSync(rightPath, 'utf8');
-    
-    // Detect formats
-    const leftFormat = options.format || detectFormat(leftPath);
-    const rightFormat = options.format || detectFormat(rightPath);
-    
-    if (leftFormat !== rightFormat && !options.force) {
-      console.warn(colorize(`Warning: File formats differ (${leftFormat} vs ${rightFormat}). Use --force to compare anyway.`, 'yellow'));
-      process.exit(1);
-    }
-    
-    // Parse configurations
-    const leftConfig = parseConfig(leftContent, leftFormat);
-    const rightConfig = parseConfig(rightContent, rightFormat);
-    
-    // Compare
-    const changes = compareConfigs(leftConfig, rightConfig);
-    
-    // Output results
-    const output = formatOutput(changes, options.output, options);
-    
-    if (options.outputFile) {
-      fs.writeFileSync(options.outputFile, output);
-      console.log(colorize(`Results written to ${options.outputFile}`, 'green'));
-    } else {
-      console.log(output);
-    }
-    
-    // Exit with appropriate code
-    process.exit(changes.length > 0 ? 1 : 0);
-    
-  } catch (error) {
-    console.error(colorize(`Error: ${error.message}`, 'red'));
-    process.exit(1);
+  // Read files
+  const leftContent = fs.readFileSync(leftPath, 'utf8');
+  const rightContent = fs.readFileSync(rightPath, 'utf8');
+
+  // Detect formats
+  const leftFormat = options.format || detectFormat(leftPath);
+  const rightFormat = options.format || detectFormat(rightPath);
+
+  if (leftFormat !== rightFormat && !options.force) {
+    throw new Error(`File formats differ (${leftFormat} vs ${rightFormat}). Use --force to compare anyway.`);
   }
+
+  // Parse configurations
+  const leftConfig = parseConfig(leftContent, leftFormat);
+  const rightConfig = parseConfig(rightContent, rightFormat);
+
+  // Compare
+  const changes = compareConfigs(leftConfig, rightConfig);
+
+  // Output results
+  const output = formatOutput(changes, options.output, options);
+
+  if (options.outputFile) {
+    fs.writeFileSync(options.outputFile, output);
+    console.log(colorize(`Results written to ${options.outputFile}`, 'green'));
+  } else {
+    console.log(output);
+  }
+
+  return changes.length;
 }
 
 /**
@@ -257,18 +246,27 @@ async function compareFiles(leftPath, rightPath, options) {
  */
 function watchFiles(leftPath, rightPath, options) {
   console.log(colorize(`Watching ${leftPath} and ${rightPath} for changes...`, 'cyan'));
-  
-  const watcher = fs.watch(path.dirname(leftPath), { recursive: false }, (eventType, filename) => {
-    if (filename === path.basename(leftPath) || filename === path.basename(rightPath)) {
-      console.log(colorize(`File ${filename} changed, recomparing...`, 'yellow'));
-      compareFiles(leftPath, rightPath, options);
-    }
-  });
-  
+
+  const recompare = (filename) => {
+    console.log(colorize(`File ${filename} changed, recomparing...`, 'yellow'));
+    compareFiles(leftPath, rightPath, options).catch((error) => {
+      console.error(colorize(`Error: ${error.message}`, 'red'));
+    });
+  };
+
+  // Watch each file's directory; both files can live in different places
+  const dirs = [...new Set([path.dirname(leftPath), path.dirname(rightPath)])];
+  const names = [path.basename(leftPath), path.basename(rightPath)];
+  const watchers = dirs.map((dir) =>
+    fs.watch(dir, { recursive: false }, (eventType, filename) => {
+      if (names.includes(filename)) recompare(filename);
+    })
+  );
+
   // Handle graceful shutdown
   process.on('SIGINT', () => {
     console.log(colorize('\nStopping file watcher...', 'cyan'));
-    watcher.close();
+    watchers.forEach((w) => w.close());
     process.exit(0);
   });
 }
@@ -277,7 +275,7 @@ function watchFiles(leftPath, rightPath, options) {
 program
   .name('configdiff')
   .description('Compare configuration files and output differences')
-  .version('1.0.0')
+  .version(version)
   .argument('<left-file>', 'Left configuration file to compare')
   .argument('<right-file>', 'Right configuration file to compare')
   .option('-f, --format <format>', 'Force specific format (json, yaml, xml, ini, toml, env, properties)')
@@ -308,13 +306,19 @@ program
     }
     
     // Start comparison
-    if (options.watch) {
-      // Initial comparison
-      await compareFiles(leftFile, rightFile, options);
-      // Start watching
-      watchFiles(leftFile, rightFile, options);
-    } else {
-      await compareFiles(leftFile, rightFile, options);
+    try {
+      if (options.watch) {
+        await compareFiles(leftFile, rightFile, options).catch((error) => {
+          console.error(colorize(`Error: ${error.message}`, 'red'));
+        });
+        watchFiles(leftFile, rightFile, options);
+      } else {
+        const diffCount = await compareFiles(leftFile, rightFile, options);
+        process.exit(diffCount > 0 ? 1 : 0);
+      }
+    } catch (error) {
+      console.error(colorize(`Error: ${error.message}`, 'red'));
+      process.exit(1);
     }
   });
 

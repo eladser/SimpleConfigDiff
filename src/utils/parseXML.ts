@@ -42,6 +42,6 @@ export function parseXML(content: string): ParsedConfig {
       format: 'xml'
     };
   } catch (error) {
-    throw new Error(`Invalid XML: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Invalid XML: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error });
   }
 }

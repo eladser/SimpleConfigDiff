@@ -18,9 +18,12 @@ export default defineConfig(({ command, mode }) => {
       sourcemap: true,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            parsers: ['js-yaml', 'fast-xml-parser', 'ini', '@iarna/toml'],
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (/[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor'
+              if (/[\\/](js-yaml|fast-xml-parser|ini|smol-toml)[\\/]/.test(id)) return 'parsers'
+              if (/[\\/](@codemirror|@lezer|@uiw|codemirror|style-mod|w3c-keyname|crelt)[\\/]/.test(id)) return 'editor'
+            }
           },
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
@@ -32,9 +35,5 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: 3000,
     },
-    // Ensure proper MIME types for ES modules
-    esbuild: {
-      target: 'es2020'
-    }
   }
 })

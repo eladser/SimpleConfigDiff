@@ -1,140 +1,81 @@
+<p align="center">
+  <img src="public/wordmark.png" alt="configdiff" width="420">
+</p>
+
 # SimpleConfigDiff
 
-A fast, browser-based tool for comparing configuration files with intelligent semantic analysis.
+Diff config files by structure, not by line. A reordered YAML key, a re-indented JSON block, or `"true"` vs `true` isn't a difference worth reading — this tool parses both sides and shows you what actually changed.
 
-## 🚀 Features
+Paste or drop two configs into the side-by-side editors and the diff updates as you type. Runs entirely in the browser; files never leave your machine.
 
-- **Multiple Format Support**: JSON, YAML, XML, INI, TOML, ENV, Properties, Config, HCL, CSV, and template files
-- **Semantic Comparison**: Understands that `"true"` and `true` are equivalent
-- **Smart Diff Views**: Side-by-side, tree, and unified diff modes
-- **Real-time Processing**: All comparison happens in your browser - no data leaves your device
-- **Dark Mode**: Beautiful dark theme with light mode toggle
-- **Export Options**: JSON, CSV, HTML, and patch file exports
+**[eladser.github.io/SimpleConfigDiff](https://eladser.github.io/SimpleConfigDiff/)**
 
-## 🔧 Quick Start
+![Demo: load a sample, see the live structural diff, filter changes, switch to tree view](.github/demo.gif)
 
-### Online Version
-Visit [https://eladser.github.io/SimpleConfigDiff/](https://eladser.github.io/SimpleConfigDiff/)
+## Use it
 
-### Local Development
+**In the browser** — [eladser.github.io/SimpleConfigDiff](https://eladser.github.io/SimpleConfigDiff/). Nothing to install, nothing uploaded anywhere.
+
+**As an app** — it's a PWA. In Chrome or Edge, open the site and click the install icon in the address bar. You get a windowed offline app with its own icon.
+
+**CLI, one-off** — no install:
+
 ```bash
-# Clone the repository
-git clone https://github.com/eladser/SimpleConfigDiff.git
-cd SimpleConfigDiff
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
+npx simple-config-diff left.json right.json
 ```
 
-## 🎯 Usage
+**CLI, on your PATH:**
 
-1. **Upload Files**: Drag and drop or click to select two configuration files
-2. **Paste Text**: Alternatively, paste configuration text directly
-3. **Compare**: Click "Compare" to analyze differences
-4. **Explore**: Use filters and search to focus on specific changes
-5. **Export**: Save results in various formats
+```bash
+npm install -g simple-config-diff
+configdiff app.yaml app.prod.yaml -o summary
+```
 
-## 🔍 Comparison Modes
+## Formats
 
-### Side-by-Side View
-- **Semantic Mode**: Shows configuration differences by key/value pairs
-- **Raw Mode**: Traditional line-by-line comparison
-- Automatically switches to semantic mode for different file formats
+JSON, YAML, TOML, XML, INI, ENV, Java properties, HCL/Terraform, CSV, and generic `.conf` files. You can also diff across formats — a JSON file against its YAML equivalent shows value changes, not syntax noise.
 
-### Tree View
-- Hierarchical display of configuration changes
-- Expandable/collapsible sections
-- Color-coded change indicators
+## Views
 
-### Unified Diff
-- Git-style unified diff output
-- Configurable context lines
-- Suitable for patch generation
+- Side by side, grouped by parent path, with search, type filters, and character-level highlights inside changed values
+- Tree of changes, expandable per section
+- Unified diff, suitable for patches
 
-## 📊 Supported Formats
+Each row has copy-path / copy-value actions, and an "ignore this key" button that adds an ignore rule and recompares on the spot. Results export to JSON, CSV, HTML, or a patch file.
 
-| Format | Extension | Description |
-|--------|-----------|-------------|
-| JSON | `.json` | JavaScript Object Notation |
-| YAML | `.yaml`, `.yml` | YAML Ain't Markup Language |
-| XML | `.xml` | eXtensible Markup Language |
-| INI | `.ini` | Configuration files |
-| TOML | `.toml` | Tom's Obvious Minimal Language |
-| ENV | `.env` | Environment variables |
-| Properties | `.properties` | Java properties files |
-| Config | `.config`, `.conf` | Generic configuration |
-| HCL | `.hcl` | HashiCorp Configuration Language |
-| CSV | `.csv` | Comma-separated values |
-| Templates | `.j2`, `.hbs`, `.mustache` | Template files |
+## Comparison options
 
-## 🛠️ Technical Details
+- Semantic mode treats `"true"` and `true` as equal
+- Ignore specific keys, or whole path patterns (glob, regex, exact)
+- Regex value transforms before comparing (e.g. normalize URLs)
+- Case, whitespace, and comment handling
 
-### Built With
-- **React 18** with TypeScript
-- **Vite** for fast development and building
-- **Tailwind CSS** for styling
-- **Lucide React** for icons
+## CLI
 
-### Browser Support
-- Chrome/Edge (recommended)
-- Firefox
-- Safari
-- Mobile browsers
+Built for scripts and CI. Exit code is 1 when differences are found, diff-style, so it works as a check step.
 
-### Security & Privacy
-- **Client-side only**: All processing happens in your browser
-- **No data transmission**: Files never leave your device
-- **No tracking**: No analytics or user data collection
+```bash
+configdiff left.json right.json                          # colored table
+configdiff app.yaml app.prod.yaml -o summary             # counts only
+configdiff a.toml b.toml -o json --output-file diff.json # machine-readable
+configdiff .env.local .env.prod -w                       # watch mode
+```
 
-## 🎨 Key Features
+Useful flags: `-f` forces a format, `--force` compares across different formats, `--ignore-case` / `--ignore-whitespace` relax matching, `--no-color` for logs. `--help` has the rest.
 
-### Smart Format Detection
-Automatically detects file format based on extension and content analysis.
+## Development
 
-### Semantic Comparison
-When comparing different formats (e.g., JSON vs YAML), shows meaningful configuration differences rather than syntax differences.
+```bash
+git clone https://github.com/eladser/SimpleConfigDiff.git
+cd SimpleConfigDiff
+npm install
+npm run dev      # localhost:3000
+npm run build    # type-check + production build
+npm run lint
+```
 
-### Advanced Filtering
-- Filter by change type (added, removed, changed)
-- Search within configuration keys and values
-- Focus on specific sections or paths
+React 19, Vite 8, Tailwind 4, TypeScript. Parsers: js-yaml, fast-xml-parser, ini, smol-toml.
 
-### Export Options
-- **JSON**: Complete comparison results with metadata
-- **CSV**: Tabular format for spreadsheet analysis
-- **HTML**: Formatted report for sharing
-- **Patch**: Git-compatible patch file
+## License
 
-## 📋 Requirements
-
-- Modern web browser with ES2020 support
-- No server or installation required for online use
-- Node.js 16+ for local development
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🌟 Acknowledgments
-
-- Configuration file parsers: js-yaml, fast-xml-parser, ini, @iarna/toml
-- UI components: Lucide React icons
-- Styling: Tailwind CSS
-
----
-
-**Simple, fast, and secure configuration file comparison in your browser.**
+MIT

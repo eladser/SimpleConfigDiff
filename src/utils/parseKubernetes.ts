@@ -14,7 +14,7 @@ export function parseKubernetes(content: string): ParsedConfig {
       };
     }
 
-    let parsedDocuments: any[] = [];
+    const parsedDocuments: any[] = [];
     let hasError = false;
     let errorMessage = '';
 

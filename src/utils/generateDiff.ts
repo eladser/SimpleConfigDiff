@@ -137,7 +137,7 @@ export function flattenObject(obj: any, prefix = ''): Record<string, any> {
   const flattened: Record<string, any> = {};
   
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
       const newKey = prefix ? `${prefix}.${key}` : key;
       
       if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
@@ -149,26 +149,6 @@ export function flattenObject(obj: any, prefix = ''): Record<string, any> {
   }
   
   return flattened;
-}
-
-export function unflattenObject(obj: Record<string, any>): any {
-  const result: any = {};
-  
-  for (const key in obj) {
-    const keys = key.split('.');
-    let current = result;
-    
-    for (let i = 0; i < keys.length - 1; i++) {
-      if (!(keys[i] in current)) {
-        current[keys[i]] = {};
-      }
-      current = current[keys[i]];
-    }
-    
-    current[keys[keys.length - 1]] = obj[key];
-  }
-  
-  return result;
 }
 
 export function processObject(obj: any, options: DiffOptions): any {
@@ -357,7 +337,7 @@ export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, option
         };
         break;
         
-      case 'A': // Array change
+      case 'A': { // Array change
         const arrayPath = path + `[${diff.index}]`;
         if (diff.item?.kind === 'N') {
           change = {
@@ -386,7 +366,8 @@ export function generateDiff(leftFile: ConfigFile, rightFile: ConfigFile, option
           return; // Skip invalid array changes
         }
         break;
-        
+      }
+
       default:
         return; // Skip unknown diff types
     }

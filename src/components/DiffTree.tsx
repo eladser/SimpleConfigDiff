@@ -1,17 +1,6 @@
 import { useState, useMemo } from 'react';
 import { DiffChange } from '@/types';
-import { 
-  ChevronDown, 
-  ChevronRight, 
-  Plus, 
-  Minus, 
-  RefreshCw, 
-  Folder, 
-  FolderOpen,
-  Search,
-  Filter,
-  X
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Search, X } from 'lucide-react';
 import { formatValue } from '@/utils/generateDiff';
 
 interface DiffTreeProps {
@@ -27,43 +16,43 @@ interface TreeNode {
   isFolder: boolean;
 }
 
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const TYPE_MARK: Record<string, { sign: string; color: string }> = {
+  added: { sign: '+', color: 'text-added' },
+  removed: { sign: '-', color: 'text-removed' },
+  changed: { sign: '~', color: 'text-changed' }
+};
+
 export function DiffTree({ changes, viewMode }: DiffTreeProps) {
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'added' | 'removed' | 'changed'>('all');
-  const [showFilters, setShowFilters] = useState(false);
-  
+
   const toggleNode = (path: string) => {
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(path)) {
-      newExpanded.delete(path);
+    const next = new Set(collapsedNodes);
+    if (next.has(path)) {
+      next.delete(path);
     } else {
-      newExpanded.add(path);
+      next.add(path);
     }
-    setExpandedNodes(newExpanded);
+    setCollapsedNodes(next);
   };
 
-  // Filter and search changes
   const filteredChanges = useMemo(() => {
     let filtered = changes;
 
-    // Apply type filter
     if (filterType !== 'all') {
       filtered = filtered.filter(change => change.type === filterType);
     }
 
-    // Apply search filter
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(change => {
-        const pathMatch = change.path.toLowerCase().includes(searchLower);
-        const oldValueMatch = change.oldValue && 
-          String(change.oldValue).toLowerCase().includes(searchLower);
-        const newValueMatch = change.newValue && 
-          String(change.newValue).toLowerCase().includes(searchLower);
-        
-        return pathMatch || oldValueMatch || newValueMatch;
-      });
+      const q = searchTerm.toLowerCase();
+      filtered = filtered.filter(change =>
+        change.path.toLowerCase().includes(q) ||
+        (change.oldValue && String(change.oldValue).toLowerCase().includes(q)) ||
+        (change.newValue && String(change.newValue).toLowerCase().includes(q))
+      );
     }
 
     return filtered;
@@ -72,17 +61,16 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
   const buildTree = (changes: DiffChange[]): TreeNode[] => {
     const tree: TreeNode[] = [];
     const nodeMap = new Map<string, TreeNode>();
-    
-    // Create root nodes for each change
+
     changes.forEach(change => {
       const pathParts = change.path.split('.');
       let currentPath = '';
-      
+
       pathParts.forEach((part, index) => {
         const isLast = index === pathParts.length - 1;
         const parentPath = currentPath;
         currentPath = currentPath ? `${currentPath}.${part}` : part;
-        
+
         if (!nodeMap.has(currentPath)) {
           const node: TreeNode = {
             path: currentPath,
@@ -91,62 +79,32 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
             change: isLast ? change : undefined,
             isFolder: !isLast
           };
-          
+
           nodeMap.set(currentPath, node);
-          
+
           if (parentPath) {
-            const parent = nodeMap.get(parentPath);
-            if (parent) {
-              parent.children.push(node);
-            }
+            nodeMap.get(parentPath)?.children.push(node);
           } else {
             tree.push(node);
           }
         } else if (isLast) {
-          // Update existing node with change
           const node = nodeMap.get(currentPath)!;
           node.change = change;
           node.isFolder = false;
         }
       });
     });
-    
+
     return tree;
-  };
-  
-  const getChangeIcon = (type: DiffChange['type']) => {
-    switch (type) {
-      case 'added':
-        return <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
-      case 'removed':
-        return <Minus className="w-4 h-4 text-red-600 dark:text-red-400" />;
-      case 'changed':
-        return <RefreshCw className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
-      default:
-        return null;
-    }
-  };
-  
-  const getChangeClass = (type: DiffChange['type']) => {
-    switch (type) {
-      case 'added':
-        return 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 dark:border-emerald-400';
-      case 'removed':
-        return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400';
-      case 'changed':
-        return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400';
-      default:
-        return '';
-    }
   };
 
   const highlightSearchTerm = (text: string) => {
     if (!searchTerm) return text;
-    
-    const parts = text.split(new RegExp(`(${searchTerm})`, 'gi'));
-    return parts.map((part, index) => 
+
+    const parts = text.split(new RegExp(`(${escapeRegExp(searchTerm)})`, 'gi'));
+    return parts.map((part, index) =>
       part.toLowerCase() === searchTerm.toLowerCase() ? (
-        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800/50 rounded px-1">
+        <mark key={index} className="bg-accent/25 text-fg rounded-sm px-0.5">
           {part}
         </mark>
       ) : part
@@ -158,90 +116,75 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
     setFilterType('all');
   };
 
-  const getFilterCounts = () => {
-    const counts = {
-      all: changes.length,
-      added: changes.filter(c => c.type === 'added').length,
-      removed: changes.filter(c => c.type === 'removed').length,
-      changed: changes.filter(c => c.type === 'changed').length
-    };
-    return counts;
+  const filterCounts = useMemo(() => ({
+    all: changes.length,
+    added: changes.filter(c => c.type === 'added').length,
+    removed: changes.filter(c => c.type === 'removed').length,
+    changed: changes.filter(c => c.type === 'changed').length
+  }), [changes]);
+
+  const hasActiveFilters = searchTerm || filterType !== 'all';
+
+  const renderValue = (change: DiffChange) => {
+    if (change.type === 'changed') {
+      return (
+        <span className="flex items-center gap-2 font-mono text-sm min-w-0">
+          <span className="text-removed truncate">{highlightSearchTerm(formatValue(change.oldValue))}</span>
+          <span className="text-faint shrink-0">→</span>
+          <span className="text-added truncate">{highlightSearchTerm(formatValue(change.newValue))}</span>
+        </span>
+      );
+    }
+    if (change.type === 'added') {
+      return (
+        <span className="font-mono text-sm text-added truncate">
+          {highlightSearchTerm(formatValue(change.newValue))}
+        </span>
+      );
+    }
+    return (
+      <span className="font-mono text-sm text-removed truncate">
+        {highlightSearchTerm(formatValue(change.oldValue))}
+      </span>
+    );
   };
 
-  const filterCounts = getFilterCounts();
-  const hasActiveFilters = searchTerm || filterType !== 'all';
-  
   const renderTreeNode = (node: TreeNode, level: number = 0) => {
-    const isExpanded = expandedNodes.has(node.path);
+    const isCollapsed = collapsedNodes.has(node.path);
     const hasChildren = node.children.length > 0;
-    
+    const mark = node.change ? TYPE_MARK[node.change.type] : null;
+
     return (
       <div key={node.path} className="select-none">
         <div
-          className={`flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
-            node.change ? getChangeClass(node.change.type) : ''
-          }`}
-          style={{ paddingLeft: `${level * 20 + 8}px` }}
+          className="flex items-center gap-2 py-1 pr-2 rounded hover:bg-elevated/60 transition-colors min-w-0"
+          style={{ paddingLeft: `${level * 18 + 4}px` }}
         >
-          {hasChildren && (
+          {hasChildren ? (
             <button
               onClick={() => toggleNode(node.path)}
-              className="flex items-center justify-center w-4 h-4 hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-colors"
+              className="flex items-center justify-center w-4 h-4 text-faint hover:text-fg transition-colors shrink-0"
             >
-              {isExpanded ? (
-                <ChevronDown className="w-3 h-3 text-slate-600 dark:text-slate-300" />
-              ) : (
-                <ChevronRight className="w-3 h-3 text-slate-600 dark:text-slate-300" />
-              )}
+              {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
-          )}
-          
-          {!hasChildren && <div className="w-4" />}
-          
-          {node.isFolder ? (
-            isExpanded ? (
-              <FolderOpen className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-            ) : (
-              <Folder className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-            )
           ) : (
-            node.change && getChangeIcon(node.change.type)
+            <span className={`w-4 text-center font-mono text-sm shrink-0 ${mark?.color ?? 'text-faint'}`}>
+              {mark?.sign ?? ''}
+            </span>
           )}
-          
-          <span className="font-mono text-sm font-medium text-slate-900 dark:text-slate-100">
+
+          <span className={`font-mono text-sm shrink-0 ${node.isFolder ? 'text-muted' : 'text-fg'}`}>
             {highlightSearchTerm(node.key)}
           </span>
-          
+
           {node.change && (
-            <div className="flex items-center gap-2 ml-auto">
-              {node.change.type === 'changed' && (
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
-                    {highlightSearchTerm(formatValue(node.change.oldValue))}
-                  </span>
-                  <span className="text-slate-400 dark:text-slate-500">→</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
-                    {highlightSearchTerm(formatValue(node.change.newValue))}
-                  </span>
-                </div>
-              )}
-              
-              {node.change.type === 'added' && (
-                <span className="text-emerald-600 dark:text-emerald-400 font-mono text-sm bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
-                  {highlightSearchTerm(formatValue(node.change.newValue))}
-                </span>
-              )}
-              
-              {node.change.type === 'removed' && (
-                <span className="text-red-600 dark:text-red-400 font-mono text-sm bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
-                  {highlightSearchTerm(formatValue(node.change.oldValue))}
-                </span>
-              )}
+            <div className="ml-auto pl-4 min-w-0">
+              {renderValue(node.change)}
             </div>
           )}
         </div>
-        
-        {hasChildren && isExpanded && (
+
+        {hasChildren && !isCollapsed && (
           <div>
             {node.children.map(child => renderTreeNode(child, level + 1))}
           </div>
@@ -249,188 +192,90 @@ export function DiffTree({ changes, viewMode }: DiffTreeProps) {
       </div>
     );
   };
-  
-  const renderFlatView = () => {
-    return (
-      <div className="space-y-2">
-        {filteredChanges.map((change, index) => (
-          <div
-            key={index}
-            className={`flex items-center gap-3 p-3 rounded-lg ${getChangeClass(change.type)}`}
-          >
-            {getChangeIcon(change.type)}
-            
-            <div className="flex-1">
-              <div className="font-mono text-sm font-medium text-slate-900 dark:text-slate-100">
-                {highlightSearchTerm(change.path)}
-              </div>
-              
-              <div className="flex items-center gap-2 mt-1 text-sm">
-                {change.type === 'changed' && (
-                  <>
-                    <span className="text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
-                      {highlightSearchTerm(formatValue(change.oldValue))}
-                    </span>
-                    <span className="text-slate-400 dark:text-slate-500">→</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
-                      {highlightSearchTerm(formatValue(change.newValue))}
-                    </span>
-                  </>
-                )}
-                
-                {change.type === 'added' && (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
-                    {highlightSearchTerm(formatValue(change.newValue))}
-                  </span>
-                )}
-                
-                {change.type === 'removed' && (
-                  <span className="text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
-                    {highlightSearchTerm(formatValue(change.oldValue))}
-                  </span>
-                )}
-              </div>
+
+  const renderFlatView = () => (
+    <div className="divide-y divide-border/60">
+      {filteredChanges.map((change, index) => {
+        const mark = TYPE_MARK[change.type];
+        return (
+          <div key={index} className="flex items-center gap-3 py-2 min-w-0">
+            <span className={`font-mono text-sm w-4 text-center shrink-0 ${mark.color}`}>{mark.sign}</span>
+            <span className="font-mono text-sm text-fg shrink-0">
+              {highlightSearchTerm(change.path)}
+            </span>
+            <div className="ml-auto pl-4 min-w-0">
+              {renderValue(change)}
             </div>
           </div>
-        ))}
-      </div>
-    );
-  };
+        );
+      })}
+    </div>
+  );
+
+  const filterChips = [
+    { value: 'all', label: 'all', count: filterCounts.all, color: 'text-fg' },
+    { value: 'added', label: 'added', count: filterCounts.added, color: 'text-added' },
+    { value: 'removed', label: 'removed', count: filterCounts.removed, color: 'text-removed' },
+    { value: 'changed', label: 'changed', count: filterCounts.changed, color: 'text-changed' }
+  ] as const;
 
   return (
-    <div className="space-y-4">
-      {/* Search and Filter Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search changes, paths, or values..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+    <div className="space-y-3">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint w-3.5 h-3.5" />
+          <input
+            type="text"
+            placeholder="Search paths or values"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-sm font-mono border border-border rounded-md bg-bg text-fg placeholder:text-faint focus:border-accent"
+          />
         </div>
-        
-        <div className="flex items-center gap-2">
-          <div className="relative">
+
+        <div className="flex items-center gap-1 font-mono text-xs">
+          {filterChips.map(({ value, label, count, color }) => (
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                showFilters || filterType !== 'all'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+              key={value}
+              onClick={() => setFilterType(value)}
+              className={`px-2 py-1 rounded transition-colors ${
+                filterType === value
+                  ? 'bg-elevated border border-border-strong'
+                  : 'border border-transparent hover:bg-elevated'
               }`}
             >
-              <Filter className="w-4 h-4" />
-              Filters
-              {filterType !== 'all' && (
-                <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5">
-                  1
-                </span>
-              )}
+              <span className={color}>{count}</span>
+              <span className="text-faint ml-1">{label}</span>
             </button>
-            
-            {showFilters && (
-              <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-xl z-30 animate-scale-in">
-                <div className="p-2">
-                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400 px-3 py-2">
-                    Filter by type:
-                  </div>
-                  {[
-                    { value: 'all', label: 'All Changes', count: filterCounts.all },
-                    { value: 'added', label: 'Added', count: filterCounts.added },
-                    { value: 'removed', label: 'Removed', count: filterCounts.removed },
-                    { value: 'changed', label: 'Changed', count: filterCounts.changed }
-                  ].map(({ value, label, count }) => (
-                    <button
-                      key={value}
-                      onClick={() => setFilterType(value as any)}
-                      className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm rounded-lg transition-colors ${
-                        filterType === value
-                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                      }`}
-                    >
-                      <span>{label}</span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all duration-200"
-            >
-              <X className="w-3 h-3" />
-              Clear
-            </button>
-          )}
+          ))}
         </div>
-      </div>
 
-      {/* Results Summary */}
-      <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
-        <span>
-          Showing {filteredChanges.length} of {changes.length} changes
-          {hasActiveFilters && (
-            <span className="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md">
-              Filtered
-            </span>
-          )}
-        </span>
-        {filteredChanges.length === 0 && hasActiveFilters && (
-          <span className="text-amber-600 dark:text-amber-400">
-            No matches found
-          </span>
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-fg transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Clear
+          </button>
         )}
       </div>
 
       {/* Results */}
       {filteredChanges.length === 0 && hasActiveFilters ? (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search className="w-8 h-8 text-slate-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-            No Results Found
-          </h3>
-          <p className="text-slate-600 dark:text-slate-300 mb-4">
-            Try adjusting your search terms or filters
-          </p>
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Clear Filters
+        <div className="text-center py-10">
+          <p className="font-mono text-sm text-muted">Nothing matches the current filters</p>
+          <button onClick={clearFilters} className="btn-secondary text-xs mt-4">
+            Clear filters
           </button>
         </div>
+      ) : viewMode === 'flat' ? (
+        renderFlatView()
       ) : (
-        <>
-          {viewMode === 'flat' ? (
-            renderFlatView()
-          ) : (
-            <div className="space-y-1">
-              {buildTree(filteredChanges).map(node => renderTreeNode(node))}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Click outside to close filter menu */}
-      {showFilters && (
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => setShowFilters(false)}
-        />
+        <div>
+          {buildTree(filteredChanges).map(node => renderTreeNode(node))}
+        </div>
       )}
     </div>
   );

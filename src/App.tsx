@@ -1,176 +1,88 @@
-import { useState, useCallback, useMemo, lazy, Suspense } from 'react';
-import { FileUpload } from '@/components/FileUpload';
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
+import { EditorPane } from '@/components/EditorPane';
 import { AdvancedOptionsPanel } from '@/components/AdvancedOptionsPanel';
 import { SideBySideDiff } from '@/components/SideBySideDiff';
-import { EnhancedSideBySideDiff } from '@/components/EnhancedSideBySideDiff';
 import { Header } from '@/components/Header';
-import { FileUploadState, DiffOptions, ComparisonResult, ConfigFormat } from '@/types';
+import { DiffOptions, ComparisonResult, ConfigFormat } from '@/types';
 import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
 import { downloadExcel } from '@/utils/exportExcel';
-import { 
-  RefreshCw, 
-  Download, 
-  BarChart3, 
-  Layers, 
-  SplitSquareHorizontal, 
-  ChevronDown, 
+import { SAMPLE_LEFT, SAMPLE_RIGHT } from '@/sampleData';
+import {
+  Download,
+  Layers,
+  SplitSquareHorizontal,
+  ChevronDown,
   Settings,
-  CheckCircle,
-  AlertCircle,
-  TrendingUp,
-  Zap,
-  ArrowRight,
+  ArrowLeftRight,
   FileText,
-  Loader2,
-  Sparkles
+  FlaskConical
 } from 'lucide-react';
 
-// Lazy load heavy components
 const DiffViewer = lazy(() => import('@/components/DiffViewer').then(module => ({ default: module.DiffViewer })));
 
-// Loading skeleton component
 const LoadingSkeleton = () => (
-  <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50 animate-pulse">
-    <div className="space-y-4">
-      <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-lg w-1/4"></div>
-      <div className="space-y-2">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
-        ))}
-      </div>
+  <div className="bg-surface border border-border rounded-lg p-6">
+    <div className="space-y-3">
+      <div className="skeleton h-5 w-1/4"></div>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="skeleton h-4 w-full"></div>
+      ))}
     </div>
   </div>
 );
 
-// Memoized statistics component
-const StatisticsCards = ({ comparisonResult }: { comparisonResult: ComparisonResult }) => {
-  const stats = useMemo(() => [
-    {
-      value: comparisonResult.summary.added,
-      label: 'Added',
-      color: 'from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20',
-      borderColor: 'border-emerald-200/50 dark:border-emerald-700/50',
-      textColor: 'text-emerald-600 dark:text-emerald-400',
-      bgColor: 'bg-emerald-200 dark:bg-emerald-800/50',
-      icon: TrendingUp
-    },
-    {
-      value: comparisonResult.summary.removed,
-      label: 'Removed',
-      color: 'from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20',
-      borderColor: 'border-red-200/50 dark:border-red-700/50',
-      textColor: 'text-red-600 dark:text-red-400',
-      bgColor: 'bg-red-200 dark:bg-red-800/50',
-      icon: TrendingUp,
-      iconClass: 'rotate-180'
-    },
-    {
-      value: comparisonResult.summary.changed,
-      label: 'Changed',
-      color: 'from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20',
-      borderColor: 'border-blue-200/50 dark:border-blue-700/50',
-      textColor: 'text-blue-600 dark:text-blue-400',
-      bgColor: 'bg-blue-200 dark:bg-blue-800/50',
-      icon: RefreshCw
-    },
-    {
-      value: `${comparisonResult.stats.similarities.toFixed(1)}%`,
-      label: 'Similarity',
-      color: 'from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20',
-      borderColor: 'border-purple-200/50 dark:border-purple-700/50',
-      textColor: 'text-purple-600 dark:text-purple-400',
-      bgColor: 'bg-purple-200 dark:bg-purple-800/50',
-      icon: BarChart3
+const SUPPORTED_FORMATS = ['JSON', 'YAML', 'TOML', 'XML', 'INI', 'ENV', 'HCL', 'Properties', 'CSV'];
+
+interface PaneState {
+  name: string | null;
+  content: string;
+  formatOverride: ConfigFormat | null;
+}
+
+const EMPTY_PANE: PaneState = { name: null, content: '', formatOverride: null };
+
+function usePane(initial: PaneState = EMPTY_PANE) {
+  const [pane, setPane] = useState<PaneState>(initial);
+
+  const derived = useMemo(() => {
+    if (!pane.content.trim()) return { format: null, error: null, ready: false };
+    const format = pane.formatOverride ?? detectFormat(pane.name ?? '', pane.content);
+    try {
+      const parsed = parseConfig(pane.content, format, pane.name ?? '');
+      return { format, error: parsed.error ?? null, ready: !parsed.error };
+    } catch (err) {
+      return { format, error: err instanceof Error ? err.message : 'Parse failed', ready: false };
     }
-  ], [comparisonResult]);
+  }, [pane]);
+
+  return { pane, setPane, ...derived };
+}
+
+const StatsRow = ({ comparisonResult }: { comparisonResult: ComparisonResult }) => {
+  const stats = [
+    { value: comparisonResult.summary.added, label: 'added', color: 'text-added' },
+    { value: comparisonResult.summary.removed, label: 'removed', color: 'text-removed' },
+    { value: comparisonResult.summary.changed, label: 'changed', color: 'text-changed' },
+    { value: `${comparisonResult.stats.similarities.toFixed(1)}%`, label: 'similar', color: 'text-muted' }
+  ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      {stats.map((stat, index) => (
-        <div key={index} className={`bg-gradient-to-br ${stat.color} rounded-xl p-4 border ${stat.borderColor}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className={`text-3xl font-bold ${stat.textColor}`}>
-                {stat.value}
-              </div>
-              <div className={`text-sm font-medium ${stat.textColor} opacity-80`}>
-                {stat.label}
-              </div>
-            </div>
-            <div className={`p-2 ${stat.bgColor} rounded-lg`}>
-              <stat.icon className={`w-5 h-5 ${stat.textColor} ${stat.iconClass || ''}`} />
-            </div>
-          </div>
+    <div className="flex items-stretch divide-x divide-border border-y border-border my-5">
+      {stats.map((stat) => (
+        <div key={stat.label} className="flex-1 px-4 py-3 first:pl-0">
+          <div className={`text-2xl font-mono font-semibold ${stat.color}`}>{stat.value}</div>
+          <div className="text-xs text-faint mt-0.5">{stat.label}</div>
         </div>
       ))}
     </div>
   );
 };
 
-// Enhanced view mode toggle
-const ViewModeToggle = ({ options, onDiffModeChange, useEnhanced, setUseEnhanced }: { 
-  options: DiffOptions; 
-  onDiffModeChange: (mode: 'tree' | 'side-by-side' | 'unified') => void;
-  useEnhanced: boolean;
-  setUseEnhanced: (enhanced: boolean) => void;
-}) => {
-  const viewModes = useMemo(() => [
-    { mode: 'side-by-side', icon: SplitSquareHorizontal, label: 'Side-by-Side' },
-    { mode: 'tree', icon: Layers, label: 'Tree' },
-    { mode: 'unified', icon: FileText, label: 'Unified' }
-  ], []);
-
-  return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/70 rounded-xl p-1">
-        {viewModes.map(({ mode, icon: Icon, label }) => (
-          <button
-            key={mode}
-            onClick={() => onDiffModeChange(mode as any)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              options.diffMode === mode 
-                ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-slate-100' 
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </button>
-        ))}
-      </div>
-      
-      {/* Enhanced Mode Toggle */}
-      <button
-        onClick={() => setUseEnhanced(!useEnhanced)}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-          useEnhanced 
-            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' 
-            : 'bg-slate-100 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-        }`}
-      >
-        <Sparkles className="w-4 h-4" />
-        Enhanced Mode
-      </button>
-    </div>
-  );
-};
-
 function App() {
-  const [leftFile, setLeftFile] = useState<FileUploadState>({
-    file: null,
-    content: '',
-    format: null,
-    isValid: false
-  });
-  
-  const [rightFile, setRightFile] = useState<FileUploadState>({
-    file: null,
-    content: '',
-    format: null,
-    isValid: false
-  });
+  const left = usePane();
+  const right = usePane();
 
   const [options, setOptions] = useState<DiffOptions>({
     ignoreKeys: [],
@@ -187,192 +99,134 @@ function App() {
     contextLines: 3,
     minimalDiff: false
   });
-  
+
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
-  const [isComparing, setIsComparing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [diffError, setDiffError] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
-  const [useEnhanced, setUseEnhanced] = useState(true);
+  const [dropTarget, setDropTarget] = useState<'left' | 'right' | null>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
-  const handleFileUpload = useCallback((file: File, side: 'left' | 'right') => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      const format = detectFormat(file.name, content);
-      
-      // Use requestIdleCallback for non-blocking parsing
-      const parseInBackground = () => {
-        const parsed = parseConfig(content, format);
-        
-        const fileState: FileUploadState = {
-          file,
-          content,
-          format,
-          isValid: !parsed.error,
-          error: parsed.error,
-          lineCount: content.split('\n').length,
-          size: file.size
-        };
-        
-        if (side === 'left') {
-          setLeftFile(fileState);
-        } else {
-          setRightFile(fileState);
-        }
-      };
-
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(parseInBackground);
-      } else {
-        setTimeout(parseInBackground, 0);
-      }
-    };
-    reader.readAsText(file);
-  }, []);
-
-  const handleTextPaste = useCallback((text: string, format: string, side: 'left' | 'right') => {
-    const configFormat = format as ConfigFormat;
-    
-    // Use requestIdleCallback for non-blocking parsing
-    const parseInBackground = () => {
-      const parsed = parseConfig(text, configFormat);
-      
-      const fileState: FileUploadState = {
-        file: null,
-        content: text,
-        format: configFormat,
-        isValid: !parsed.error,
-        error: parsed.error,
-        lineCount: text.split('\n').length,
-        size: new Blob([text]).size
-      };
-      
-      if (side === 'left') {
-        setLeftFile(fileState);
-      } else {
-        setRightFile(fileState);
-      }
-    };
-
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(parseInBackground);
-    } else {
-      setTimeout(parseInBackground, 0);
-    }
-  }, []);
-
-  const performComparison = useCallback(async () => {
-    if (!leftFile.isValid || !rightFile.isValid) {
-      setError('Please provide two valid configuration files or texts');
+  const runCompare = useCallback(() => {
+    if (!left.ready || !right.ready) {
+      setComparisonResult(null);
       return;
     }
-    
-    setIsComparing(true);
-    setError(null);
-    
+
     try {
-      // Use a small delay to allow UI to update
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
-      const leftParsed = parseConfig(leftFile.content, leftFile.format!);
-      const rightParsed = parseConfig(rightFile.content, rightFile.format!);
-      
-      if (leftParsed.error) {
-        throw new Error(`Error parsing left file: ${leftParsed.error}`);
-      }
-      
-      if (rightParsed.error) {
-        throw new Error(`Error parsing right file: ${rightParsed.error}`);
-      }
-      
-      const leftConfigFile = {
-        name: leftFile.file?.name || 'Left Text',
-        content: leftFile.content,
-        format: leftFile.format!,
-        parsedContent: leftParsed.data
-      };
-      
-      const rightConfigFile = {
-        name: rightFile.file?.name || 'Right Text',
-        content: rightFile.content,
-        format: rightFile.format!,
-        parsedContent: rightParsed.data
-      };
-      
-      // Run diff generation in background
-      const diffGeneration = () => {
-        const result = generateDiff(leftConfigFile, rightConfigFile, options);
-        setComparisonResult(result);
-        setIsComparing(false);
-      };
+      const leftParsed = parseConfig(left.pane.content, left.format!);
+      const rightParsed = parseConfig(right.pane.content, right.format!);
 
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(diffGeneration);
-      } else {
-        setTimeout(diffGeneration, 0);
-      }
-      
+      const result = generateDiff(
+        {
+          name: left.pane.name || 'left',
+          content: left.pane.content,
+          format: left.format!,
+          parsedContent: leftParsed.data
+        },
+        {
+          name: right.pane.name || 'right',
+          content: right.pane.content,
+          format: right.format!,
+          parsedContent: rightParsed.data
+        },
+        options
+      );
+      setComparisonResult(result);
+      setDiffError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during comparison');
-      setIsComparing(false);
+      setDiffError(err instanceof Error ? err.message : 'Comparison failed');
+      setComparisonResult(null);
     }
-  }, [leftFile, rightFile, options]);
+  }, [left.ready, right.ready, left.pane, right.pane, left.format, right.format, options]);
 
-  const handleCompare = useCallback(() => {
-    performComparison();
-  }, [performComparison]);
+  // Live compare, debounced. Options changes re-run it too.
+  useEffect(() => {
+    const id = setTimeout(runCompare, 350);
+    return () => clearTimeout(id);
+  }, [runCompare]);
 
-  const handleRecompare = useCallback(() => {
-    setComparisonResult(null);
-    setError(null);
-    setIsComparing(true);
-    
-    setTimeout(() => {
-      performComparison();
-    }, 50);
-  }, [performComparison]);
+  const openFile = useCallback((file: File, side: 'left' | 'right') => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = (e.target?.result as string) ?? '';
+      const setPane = side === 'left' ? left.setPane : right.setPane;
+      setPane({ name: file.name, content, formatOverride: null });
+    };
+    reader.readAsText(file);
+  }, [left.setPane, right.setPane]);
 
-  // Debounced options change handler
+  // Drag a file anywhere on the page; the half you're over receives it
+  useEffect(() => {
+    const onDragOver = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes('Files')) return;
+      e.preventDefault();
+      setDropTarget(e.clientX < window.innerWidth / 2 ? 'left' : 'right');
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (!e.relatedTarget) setDropTarget(null);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!e.dataTransfer?.files.length) return;
+      e.preventDefault();
+      const side = e.clientX < window.innerWidth / 2 ? 'left' : 'right';
+      openFile(e.dataTransfer.files[0], side);
+      setDropTarget(null);
+    };
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [openFile]);
+
+  // Ctrl+Enter compares immediately and jumps to results
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runCompare();
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [runCompare]);
+
+  const swapSides = useCallback(() => {
+    const l = left.pane;
+    left.setPane(right.pane);
+    right.setPane(l);
+  }, [left, right]);
+
+  const loadSample = useCallback(() => {
+    left.setPane({ name: 'staging.yaml', content: SAMPLE_LEFT, formatOverride: null });
+    right.setPane({ name: 'production.yaml', content: SAMPLE_RIGHT, formatOverride: null });
+  }, [left, right]);
+
   const handleOptionsChange = useCallback((newOptions: DiffOptions) => {
     setOptions(newOptions);
-    
-    if (comparisonResult && leftFile.isValid && rightFile.isValid) {
-      const timeoutId = setTimeout(() => {
-        performComparison();
-      }, 300);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [comparisonResult, leftFile.isValid, rightFile.isValid, performComparison]);
-  
-  const handleReset = useCallback(() => {
-    setLeftFile({
-      file: null,
-      content: '',
-      format: null,
-      isValid: false
-    });
-    setRightFile({
-      file: null,
-      content: '',
-      format: null,
-      isValid: false
-    });
-    setComparisonResult(null);
-    setError(null);
-    setShowAdvancedOptions(false);
+  }, []);
+
+  const ignoreKey = useCallback((path: string) => {
+    setOptions(prev => ({
+      ...prev,
+      pathRules: [...prev.pathRules, { pattern: path, type: 'exact', action: 'ignore', description: 'Ignored from diff row' }]
+    }));
   }, []);
 
   const handleExport = useCallback(async (format: 'json' | 'csv' | 'html' | 'patch' | 'pdf' | 'xlsx') => {
     if (!comparisonResult) return;
-    
+
     const exportOptions = {
       includeMetadata: true,
       includeStats: true,
       includeContext: true
     };
-    
+
     try {
       if (format === 'pdf') {
         await downloadPDFDiff(comparisonResult, options, exportOptions);
@@ -382,10 +236,10 @@ function App() {
         downloadDiff(comparisonResult, options, format, exportOptions);
       }
     } catch (error) {
-      console.error(`${format.toUpperCase()} export failed:`, error);
-      setError(`${format.toUpperCase()} export failed. Please try again.`);
+      console.error(`${format} export failed:`, error);
+      setDiffError(`Export to ${format.toUpperCase()} failed`);
     }
-    
+
     setShowExportMenu(false);
   }, [comparisonResult, options]);
 
@@ -395,15 +249,15 @@ function App() {
 
   const generateUnifiedDiff = useCallback(() => {
     if (!comparisonResult) return 'No comparison result available';
-    
+
     const lines = [];
-    lines.push(`--- ${leftFile.file?.name || 'Left Text'}`);
-    lines.push(`+++ ${rightFile.file?.name || 'Right Text'}`);
+    lines.push(`--- ${left.pane.name || 'left'}`);
+    lines.push(`+++ ${right.pane.name || 'right'}`);
     lines.push('');
-    
+
     comparisonResult.changes.forEach((change) => {
       const path = change.path || '';
-      
+
       if (change.type === 'added') {
         lines.push(`+${path}: ${JSON.stringify(change.newValue)}`);
       } else if (change.type === 'removed') {
@@ -413,302 +267,219 @@ function App() {
         lines.push(`+${path}: ${JSON.stringify(change.newValue)}`);
       }
     });
-    
+
     if (lines.length === 3) {
       lines.push('No differences found');
     }
-    
-    return lines.join('\n');
-  }, [comparisonResult, leftFile, rightFile]);
-  
-  const canCompare = leftFile.isValid && rightFile.isValid;
-  const hasFiles = leftFile.file || rightFile.file || leftFile.content || rightFile.content;
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900">
-      <Header />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        
-        {/* Results Section */}
-        {comparisonResult && (
-          <div className="mb-8 animate-fade-in">
-            
-            {/* Results Header */}
-            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl shadow-lg">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                      Comparison Results
-                    </h2>
-                    <p className="text-slate-600 dark:text-slate-300">
-                      Found {comparisonResult.summary.total} differences between your configurations
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={handleRecompare}
-                    disabled={isComparing}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700/70 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isComparing ? 'animate-spin' : ''}`} />
-                    {isComparing ? 'Re-comparing...' : 'Re-compare'}
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
-                      showAdvancedOptions 
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
-                        : 'bg-slate-100 dark:bg-slate-700/70 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    <Settings className="w-4 h-4" />
-                    {showAdvancedOptions ? 'Hide Options' : 'Advanced Options'}
-                  </button>
 
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowExportMenu(!showExportMenu)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 shadow-lg hover:shadow-xl"
-                    >
-                      <Download className="w-4 h-4" />
-                      Export
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                    
-                    {showExportMenu && (
-                      <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-xl z-30 animate-scale-in">
-                        <div className="py-2">
-                          <button
-                            onClick={() => handleExport('json')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
-                          >
-                            📄 JSON Report
-                          </button>
-                          <button
-                            onClick={() => handleExport('csv')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
-                          >
-                            📊 CSV Export
-                          </button>
-                          <button
-                            onClick={() => handleExport('html')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
-                          >
-                            🌐 HTML Report
-                          </button>
-                          <button
-                            onClick={() => handleExport('patch')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200"
-                          >
-                            📝 Patch File
-                          </button>
-                        </div>
-                      </div>
-                    )}
+    return lines.join('\n');
+  }, [comparisonResult, left.pane.name, right.pane.name]);
+
+  const bothEmpty = !left.pane.content.trim() && !right.pane.content.trim();
+
+  const viewModes = [
+    { mode: 'side-by-side', icon: SplitSquareHorizontal, label: 'Side by side' },
+    { mode: 'tree', icon: Layers, label: 'Tree' },
+    { mode: 'unified', icon: FileText, label: 'Unified' }
+  ] as const;
+
+  return (
+    <div className="min-h-screen bg-bg text-fg">
+      <Header />
+
+      <div className="max-w-370 mx-auto px-4 sm:px-6 py-6">
+
+        {/* Intro — only while empty */}
+        {bothEmpty && (
+          <div className="mb-6 animate-fade-in max-w-2xl">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+              Diff config files, structurally.
+              <span className="terminal-cursor" aria-hidden="true" />
+            </h1>
+            <p className="text-muted mt-2 text-sm leading-relaxed">
+              Compared by parsed structure, not by line — reordered keys and re-indentation
+              aren't noise. Everything runs in your browser.
+            </p>
+            <p className="mt-2 font-mono text-xs text-faint">
+              {SUPPORTED_FORMATS.join(' · ')}
+            </p>
+          </div>
+        )}
+
+        {/* Workspace toolbar */}
+        <div className="flex items-center gap-2 mb-3">
+          {bothEmpty && (
+            <button onClick={loadSample} className="btn-secondary text-xs">
+              <FlaskConical className="w-3.5 h-3.5" />
+              Try a sample
+            </button>
+          )}
+          {!bothEmpty && (
+            <button onClick={swapSides} className="btn-secondary text-xs" title="Swap sides">
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              Swap
+            </button>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden md:inline font-mono text-xs text-faint mr-1">ctrl+enter → results</span>
+            <button
+              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              className={`btn-secondary text-xs ${showAdvancedOptions ? 'border-accent/40 text-accent' : ''}`}
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Options
+            </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={!comparisonResult}
+                className="btn-secondary text-xs disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export
+                <ChevronDown className="w-3 h-3" />
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute top-full right-0 mt-1 w-40 bg-elevated rounded-md border border-border-strong z-30 animate-scale-in shadow-lg shadow-black/40">
+                  <div className="py-1">
+                    {([
+                      ['json', 'JSON report'],
+                      ['csv', 'CSV'],
+                      ['html', 'HTML report'],
+                      ['patch', 'Patch file'],
+                    ] as const).map(([fmt, label]) => (
+                      <button
+                        key={fmt}
+                        onClick={() => handleExport(fmt)}
+                        className="w-full px-3 py-1.5 text-left text-sm text-muted hover:text-fg hover:bg-surface transition-colors font-mono"
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Editors */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+          <EditorPane
+            label="Left"
+            name={left.pane.name}
+            content={left.pane.content}
+            format={left.format}
+            formatOverride={left.pane.formatOverride}
+            parseError={left.error}
+            isDropTarget={dropTarget === 'left'}
+            onChange={(content) => left.setPane(p => ({ ...p, content }))}
+            onFormatOverride={(f) => left.setPane(p => ({ ...p, formatOverride: f }))}
+            onOpenFile={(f) => openFile(f, 'left')}
+            onClear={() => left.setPane(EMPTY_PANE)}
+          />
+          <EditorPane
+            label="Right"
+            name={right.pane.name}
+            content={right.pane.content}
+            format={right.format}
+            formatOverride={right.pane.formatOverride}
+            parseError={right.error}
+            isDropTarget={dropTarget === 'right'}
+            onChange={(content) => right.setPane(p => ({ ...p, content }))}
+            onFormatOverride={(f) => right.setPane(p => ({ ...p, formatOverride: f }))}
+            onOpenFile={(f) => openFile(f, 'right')}
+            onClear={() => right.setPane(EMPTY_PANE)}
+          />
+        </div>
+
+        {/* Options */}
+        {showAdvancedOptions && (
+          <div className="mb-4 animate-slide-up">
+            <AdvancedOptionsPanel
+              options={options}
+              onOptionsChange={handleOptionsChange}
+            />
+          </div>
+        )}
+
+        {/* Diff error */}
+        {diffError && (
+          <div className="mb-4 animate-shake">
+            <div className="border border-removed/30 border-l-2 border-l-removed rounded-md px-4 py-3 bg-removed/5">
+              <p className="text-sm text-removed font-medium font-mono">{diffError}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Results */}
+        {comparisonResult && (
+          <div ref={resultsRef} className="mb-10 animate-fade-in scroll-mt-16">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  {comparisonResult.summary.total === 0
+                    ? 'No differences'
+                    : `${comparisonResult.summary.total} ${comparisonResult.summary.total === 1 ? 'difference' : 'differences'}`}
+                </h2>
+                <p className="text-sm text-muted mt-0.5 font-mono">
+                  {left.pane.name || 'left'} → {right.pane.name || 'right'}
+                </p>
               </div>
 
-              {/* Statistics Cards */}
-              <StatisticsCards comparisonResult={comparisonResult} />
-
-              {/* Enhanced View Mode Toggle */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <span className="font-medium">View Mode:</span>
-                </div>
-                <ViewModeToggle 
-                  options={options} 
-                  onDiffModeChange={handleDiffModeChange}
-                  useEnhanced={useEnhanced}
-                  setUseEnhanced={setUseEnhanced}
-                />
+              <div className="inline-flex items-center border border-border rounded-md overflow-hidden">
+                {viewModes.map(({ mode, icon: Icon, label }) => (
+                  <button
+                    key={mode}
+                    onClick={() => handleDiffModeChange(mode)}
+                    className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors border-r border-border last:border-r-0 ${
+                      options.diffMode === mode
+                        ? 'bg-elevated text-fg'
+                        : 'bg-surface text-muted hover:text-fg'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Advanced Options Panel */}
-            {showAdvancedOptions && (
-              <div className="mb-6 animate-slide-down">
-                <AdvancedOptionsPanel
-                  options={options}
-                  onOptionsChange={handleOptionsChange}
-                />
-              </div>
-            )}
+            <StatsRow comparisonResult={comparisonResult} />
 
-            {/* Enhanced Diff Viewer */}
             <div className="animate-slide-up">
               {options.diffMode === 'side-by-side' ? (
-                useEnhanced ? (
-                  <EnhancedSideBySideDiff result={comparisonResult} />
-                ) : (
-                  <SideBySideDiff result={comparisonResult} />
-                )
+                <SideBySideDiff result={comparisonResult} onIgnoreKey={ignoreKey} />
               ) : options.diffMode === 'unified' ? (
-                <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
-                  <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">Unified Diff</h3>
-                  <pre className="text-sm font-mono bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl overflow-x-auto whitespace-pre-wrap text-slate-800 dark:text-slate-200 border border-slate-200/50 dark:border-slate-700/50">
+                <div className="bg-surface border border-border rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 border-b border-border text-xs text-faint font-mono">unified</div>
+                  <pre className="text-sm font-mono p-4 overflow-x-auto whitespace-pre-wrap text-fg">
                     {generateUnifiedDiff()}
                   </pre>
                 </div>
               ) : (
-                <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      Tree View - Changes ({comparisonResult.changes.length})
-                    </h3>
+                <div className="bg-surface border border-border rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 border-b border-border text-xs text-faint font-mono">
+                    tree · {comparisonResult.changes.length} changes
                   </div>
-                  <Suspense fallback={<LoadingSkeleton />}>
-                    <DiffViewer
-                      result={comparisonResult}
-                      options={options}
-                    />
-                  </Suspense>
+                  <div className="p-4">
+                    <Suspense fallback={<LoadingSkeleton />}>
+                      <DiffViewer
+                        result={comparisonResult}
+                        options={options}
+                      />
+                    </Suspense>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         )}
-        
-        {/* Hero Section */}
-        {!comparisonResult && (
-          <div className="text-center mb-12 animate-fade-in">
-            <h1 className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-slate-100 mb-6">
-              Compare Configuration Files
-              <span className="block text-4xl md:text-5xl bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent mt-2">
-                with Intelligence
-              </span>
-            </h1>
-            <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
-              Upload files or paste text to get intelligent, human-readable diffs with advanced analysis and beautiful visualizations
-            </p>
-          </div>
-        )}
-
-        {/* Upload Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="group">
-            <FileUpload
-              title="Configuration A"
-              fileState={leftFile}
-              onFileUpload={(file) => handleFileUpload(file, 'left')}
-              onTextPaste={(text, format) => handleTextPaste(text, format, 'left')}
-              placeholder="Drop your first config file here or click to browse"
-            />
-          </div>
-          
-          <div className="group">
-            <FileUpload
-              title="Configuration B"
-              fileState={rightFile}
-              onFileUpload={(file) => handleFileUpload(file, 'right')}
-              onTextPaste={(text, format) => handleTextPaste(text, format, 'right')}
-              placeholder="Drop your second config file here or click to browse"
-            />
-          </div>
-        </div>
-
-        {/* Upload Status & Compare */}
-        {hasFiles && (
-          <div className="mb-8 animate-slide-up">
-            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-6">
-                  <div className="flex items-center space-x-3">
-                    {leftFile.isValid ? (
-                      <CheckCircle className="w-6 h-6 text-emerald-500" />
-                    ) : (
-                      <AlertCircle className="w-6 h-6 text-red-500" />
-                    )}
-                    <div>
-                      <p className="font-medium text-slate-900 dark:text-slate-100">
-                        {leftFile.file?.name || (leftFile.content ? 'Pasted Text' : 'No input')}
-                      </p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {leftFile.isValid ? 'Ready to compare' : 'Invalid format'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-center">
-                    <ArrowRight className="w-6 h-6 text-slate-400" />
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    {rightFile.isValid ? (
-                      <CheckCircle className="w-6 h-6 text-emerald-500" />
-                    ) : (
-                      <AlertCircle className="w-6 h-6 text-red-500" />
-                    )}
-                    <div>
-                      <p className="font-medium text-slate-900 dark:text-slate-100">
-                        {rightFile.file?.name || (rightFile.content ? 'Pasted Text' : 'No input')}
-                      </p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {rightFile.isValid ? 'Ready to compare' : 'Invalid format'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-4">
-                  <button
-                    onClick={handleReset}
-                    className="px-6 py-3 text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-700/70 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-all duration-200 font-medium"
-                  >
-                    Reset
-                  </button>
-                  
-                  <button
-                    onClick={handleCompare}
-                    disabled={!canCompare || isComparing}
-                    className={`flex items-center gap-3 px-8 py-3 text-lg font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl ${
-                      canCompare && !isComparing
-                        ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white hover:from-blue-700 hover:via-purple-700 hover:to-indigo-700 transform hover:scale-105'
-                        : 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {isComparing ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Comparing...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-5 h-5" />
-                        Compare
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Error Display */}
-        {error && (
-          <div className="mb-8 animate-shake">
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-2xl p-6 backdrop-blur-xl">
-              <div className="flex items-center">
-                <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400 mr-3" />
-                <div className="text-red-800 dark:text-red-200 font-medium text-lg">Error</div>
-              </div>
-              <div className="text-red-700 dark:text-red-300 mt-2">{error}</div>
-            </div>
-          </div>
-        )}
       </div>
-      
-      {/* Click outside to close export menu */}
+
       {showExportMenu && (
         <div
           className="fixed inset-0 z-20"

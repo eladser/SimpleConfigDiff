@@ -47,6 +47,6 @@ export function parseENV(content: string): ParsedConfig {
       format: 'env'
     };
   } catch (error) {
-    throw new Error(`Invalid ENV: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Invalid ENV: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error });
   }
 }

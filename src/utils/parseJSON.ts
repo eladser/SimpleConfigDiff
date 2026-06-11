@@ -8,6 +8,6 @@ export function parseJSON(content: string): ParsedConfig {
       format: 'json'
     };
   } catch (error) {
-    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error });
   }
 }

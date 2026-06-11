@@ -2,22 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔄</text></svg>">
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="icon" href="./icon-192.png" type="image/png" sizes="192x192">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Compare configuration files (JSON, YAML, XML, INI, TOML, ENV) with human-friendly structured diffs" />
-    <meta name="keywords" content="config, diff, comparison, json, yaml, xml, ini, toml, env, configuration" />
+    <meta name="theme-color" content="#0b0d0e" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="description" content="Diff JSON, YAML, TOML, XML, INI and ENV files by structure, not by line. Runs entirely in the browser." />
     <meta name="author" content="eladser" />
-    <title>SimpleConfigDiff - Configuration File Comparison Tool</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      body {
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      }
-    </style>
+    <title>SimpleConfigDiff — structural diffs for config files</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="SimpleConfigDiff — structural diffs for config files" />
+    <meta property="og:description" content="Diff JSON, YAML, TOML, XML, INI and ENV files by structure, not by line. Runs entirely in the browser." />
+    <meta property="og:url" content="https://eladser.github.io/SimpleConfigDiff/" />
+    <meta property="og:image" content="https://eladser.github.io/SimpleConfigDiff/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://eladser.github.io/SimpleConfigDiff/og.png" />
   </head>
-  <body class="bg-gray-50">
+  <body>
     <div id="root"></div>
     <script type="module" src="./src/main.tsx"></script>
   </body>

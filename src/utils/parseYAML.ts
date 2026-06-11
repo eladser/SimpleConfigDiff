@@ -9,6 +9,6 @@ export function parseYAML(content: string): ParsedConfig {
       format: 'yaml'
     };
   } catch (error) {
-    throw new Error(`Invalid YAML: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Invalid YAML: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error });
   }
 }
