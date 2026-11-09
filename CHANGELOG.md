@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.1 - 2026-11-10
+
+### Security
+- `js-yaml` 4.2.0 → 4.3.2 and `smol-toml` 1.6.1 → 1.9.1, so a crafted YAML or TOML file can no longer pin the CPU in the web app or the CLI. Fixes GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj and GHSA-2883-xcg3-v3hh (js-yaml), GHSA-7w5x-hrqm-74c2 and GHSA-r4xh-jqrq-34v2 (smol-toml).
+
 ## 2.0.0 — 2026-06-11
 
 Full rework. The tool does the same job, but the stack, the interface, and the project setup were rebuilt.
