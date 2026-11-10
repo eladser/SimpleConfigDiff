@@ -140,9 +140,9 @@ function detectFormatByContent(content: string): ConfigFormat {
     return 'properties';
   }
   
-  // INI detection
+  // INI and TOML both have [section] and key = value
   if (trimmed.includes('[') && trimmed.includes(']') && trimmed.includes('=')) {
-    return 'ini';
+    return looksLikeTOML(trimmed) ? 'toml' : 'ini';
   }
   
   // TOML detection
@@ -158,6 +158,29 @@ function detectFormatByContent(content: string): ConfigFormat {
   
   // Default to config
   return 'config';
+}
+
+// [[tables]] only exist in TOML. A ; comment or a bare value (host = localhost, an IP,
+// nothing) can't be TOML, even under a dotted [a.b] header, since setup.cfg has those.
+// Otherwise dotted headers and typed values (strings, numbers, true/false, dates,
+// arrays, inline tables) mean TOML.
+function looksLikeTOML(content: string): boolean {
+  const lines = content.split('\n').map(l => l.trim());
+  if (lines.some(l => /^\[\[.+\]\]/.test(l))) return true;
+
+  let toml = false;
+  for (const line of lines) {
+    if (line.startsWith(';')) return false;
+    if (/^\[[^\]]*\.[^\]]*\]/.test(line)) toml = true;
+
+    const m = line.match(/^[^#[{=]+=\s*(.*)$/);
+    if (!m) continue;
+    const typed = /^["'[{]/.test(m[1]) ||
+      /^(true|false|[+-]?\d[\d_]*(\.\d+)?([eE][+-]?\d+)?|\d{4}-\d{2}-\d{2}[\dT:.Z+ -]*)\s*(#.*)?$/.test(m[1]);
+    if (!typed) return false;
+    toml = true;
+  }
+  return toml;
 }
 
 function isDockerComposeFile(filename: string, content: string): boolean {
