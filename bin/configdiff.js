@@ -172,17 +172,30 @@ function isSecretKey(key) {
 }
 
 /**
+ * Only arrays and plain objects get walked, null-prototype ones too (INI
+ * sections, TOML tables). Dates and other class values pass through.
+ */
+function walkable(v) {
+  if (v === null || typeof v !== 'object') return false;
+  const p = Object.getPrototypeOf(v);
+  return Array.isArray(v) || p === Object.prototype || p === null;
+}
+
+function hasSecrets(value) {
+  return walkable(value) && Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v));
+}
+
+/**
  * Swap values under secret keys for dots, nested ones included. Missing and
- * null values stay as they are.
+ * null values stay as they are, and a value with nothing secret under it
+ * comes back as the same value.
  */
 function maskValue(value, key) {
   if (value === null || value === undefined) return value;
   if (isSecretKey(key)) return MASK;
+  if (!hasSecrets(value)) return value;
   if (Array.isArray(value)) return value.map((v) => maskValue(v, ''));
-  if (typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, maskValue(v, k)]));
-  }
-  return value;
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, maskValue(v, k)]));
 }
 
 const RC_FILE = '.configdiffrc.json';

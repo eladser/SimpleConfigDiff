@@ -232,8 +232,10 @@ const MASK = '\u2022'.repeat(6);
 
 // secret values all carry S3CR3T so one includes() check covers a whole output
 const secretPair = () => pair('secrets',
-  { db: { host: 'a', password: 'S3CR3T-1' }, author: 'alice', AUTH_TOKEN: 'S3CR3T-2', clientSecret: 'S3CR3T-3' },
-  { db: { host: 'b', password: 'S3CR3T-4' }, author: 'bob', AUTH_TOKEN: 'S3CR3T-5', clientSecret: 'S3CR3T-6' });
+  { db: { host: 'a', password: 'S3CR3T-1' }, author: 'alice', AUTH_TOKEN: 'S3CR3T-2', clientSecret: 'S3CR3T-3',
+    secretKey: 'S3CR3T-7', passwordHash: 'S3CR3T-8' },
+  { db: { host: 'b', password: 'S3CR3T-4' }, author: 'bob', AUTH_TOKEN: 'S3CR3T-5', clientSecret: 'S3CR3T-6',
+    secretKey: 'S3CR3T-9', passwordHash: 'S3CR3T-10' });
 
 test('secret values are masked in every output format', () => {
   const [l, r] = secretPair();
@@ -258,8 +260,10 @@ test('a masked secret still counts as changed', () => {
     { path: 'author', type: 'changed', oldValue: 'alice', newValue: 'bob' },
     { path: 'AUTH_TOKEN', type: 'changed', oldValue: MASK, newValue: MASK },
     { path: 'clientSecret', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'secretKey', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'passwordHash', type: 'changed', oldValue: MASK, newValue: MASK },
   ]);
-  assert.match(run([l, r, '-o', 'summary']).stdout, /Changed: 5\s+Total: 5/);
+  assert.match(run([l, r, '-o', 'summary']).stdout, /Changed: 7\s+Total: 7/);
 
   const [same1, same2] = pair('samesecret', { password: 'S3CR3T' }, { password: 'S3CR3T' });
   assert.equal(run([same1, same2]).status, 0);
@@ -284,6 +288,22 @@ test('everything under a secret key masks, and secret keys inside added objects'
     { path: 'tokens.0', type: 'changed', oldValue: MASK, newValue: MASK },
     { path: 'servers.1', type: 'added', newValue: { host: 'b', apiKey: MASK } },
     { path: 'db', type: 'added', newValue: { host: 'h', password: MASK } },
+  ]);
+
+  const [l2, r2] = pair('replicas', { app: 'x' }, { app: 'x', extra: { replicas: [{ host: 'h', password: 'S3CR3T-7' }] } });
+  assert.deepEqual(JSON.parse(run([l2, r2, '-o', 'json']).stdout), [
+    { path: 'extra', type: 'added', newValue: { replicas: [{ host: 'h', password: MASK }] } },
+  ]);
+});
+
+test('values with nothing secret under them print as before, dates included', () => {
+  const l = join(dir, 'date-l.yaml');
+  const r = join(dir, 'date-r.yaml');
+  writeFileSync(l, 'name: app\n');
+  writeFileSync(r, 'name: app\nreleased: 2024-01-01\nbuild:\n  at: 2024-02-02\n');
+  assert.deepEqual(JSON.parse(run([l, r, '-o', 'json']).stdout), [
+    { path: 'released', type: 'added', newValue: '2024-01-01T00:00:00.000Z' },
+    { path: 'build', type: 'added', newValue: { at: '2024-02-02T00:00:00.000Z' } },
   ]);
 });
 

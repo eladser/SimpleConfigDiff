@@ -17,19 +17,25 @@ export function isSecretKey(key: string): boolean {
   return SECRET_KEY.test(k);
 }
 
-export function maskValue(value: any, key: string): any {
-  if (value === null || value === undefined) return value;
-  if (isSecretKey(key)) return MASK;
-  if (Array.isArray(value)) return value.map(v => maskValue(v, ''));
-  if (typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, maskValue(v, k)]));
-  }
-  return value;
+// Only arrays and plain objects get walked, null-prototype ones too (INI
+// sections, TOML tables). Dates and other class values pass through.
+function walkable(v: any): boolean {
+  if (v === null || typeof v !== 'object') return false;
+  const p = Object.getPrototypeOf(v);
+  return Array.isArray(v) || p === Object.prototype || p === null;
 }
 
 export const hasSecrets = (value: any): boolean =>
-  value !== null && typeof value === 'object' &&
-  Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v));
+  walkable(value) && Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v));
+
+// Hands back the same value when nothing under it is secret
+export function maskValue(value: any, key: string): any {
+  if (value === null || value === undefined) return value;
+  if (isSecretKey(key)) return MASK;
+  if (!hasSecrets(value)) return value;
+  if (Array.isArray(value)) return value.map(v => maskValue(v, ''));
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, maskValue(v, k)]));
+}
 
 // Display copy of a result. The diff already ran on the real values, so change
 // types and counts don't move. Returns the result itself when there's nothing to hide.
@@ -37,14 +43,15 @@ export function maskResult(result: ComparisonResult): ComparisonResult {
   const { leftFile: l, rightFile: r } = result;
   if (!hasSecrets(l.parsedContent) && !hasSecrets(r.parsedContent)) return result;
 
-  // generateDiff lowercases top-level keys unless case-sensitive, so secretKey arrives as secretkey
-  const top = new Set(
-    [...Object.keys(l.parsedContent ?? {}), ...Object.keys(r.parsedContent ?? {})]
-      .filter(isSecretKey)
-      .map(k => k.toLowerCase())
-  );
+  // generateDiff lowercases top-level keys unless case-sensitive, so secretKey
+  // arrives as secretkey and a dotted aws.secretKey key as aws.secretkey
+  const top = [...Object.keys(l.parsedContent ?? {}), ...Object.keys(r.parsedContent ?? {})]
+    .filter(isSecretKey)
+    .map(k => k.toLowerCase());
+  const underTop = (path: string) =>
+    top.some(t => path === t || path.startsWith(t + '.') || path.startsWith(t + '['));
   const mask = (v: any, path: string) =>
-    v != null && top.has(path.split(/[.[]/)[0]) ? MASK : maskValue(v, path);
+    v != null && underTop(path) ? MASK : maskValue(v, path);
 
   // Raw text can't be masked reliably, so it's dropped. That empties the raw
   // view and the patch context lines until secrets are shown.
