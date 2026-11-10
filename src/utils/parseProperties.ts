@@ -75,6 +75,15 @@ function parsePropertyValue(value: string): any {
     .replace(/\\\\/g, '\\');
 }
 
+// Plain assignment to __proto__ would set the prototype instead of a key
+function setOwn(obj: Record<string, any>, key: string, value: any): void {
+  if (Object.hasOwn(obj, key)) {
+    obj[key] = value;
+  } else {
+    Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true });
+  }
+}
+
 function setNestedProperty(obj: Record<string, any>, path: string, value: any): void {
   const keys = path.split('.');
   let current = obj;
@@ -83,16 +92,16 @@ function setNestedProperty(obj: Record<string, any>, path: string, value: any): 
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];
     
-    if (!(key in current)) {
-      current[key] = {};
+    if (!Object.hasOwn(current, key)) {
+      setOwn(current, key, {});
     } else if (typeof current[key] !== 'object' || current[key] === null) {
       // If the property exists but is not an object, convert it to an object
-      current[key] = {};
+      setOwn(current, key, {});
     }
     
     current = current[key];
   }
   
   // Set the final value
-  current[keys[keys.length - 1]] = value;
+  setOwn(current, keys[keys.length - 1], value);
 }
