@@ -52,7 +52,7 @@ To share a diff, click "Copy link" in the header. Both configs and your comparis
 - Regex value transforms before comparing (e.g. normalize URLs)
 - Case, whitespace, and comment handling
 
-Values under keys like `password`, `token`, or `api_key` show as dots in every view and export. They're still compared, so a changed password still counts as a change. "Show secrets" reveals them; it's off on every load, and the raw view stays hidden until you turn it on.
+Values under keys like `password`, `token`, or `api_key` show as dots in every view and export. They're still compared, so a changed password still counts as a change. "Show secrets" reveals them; it's off on every load, and while anything is masked the raw view stays hidden until you turn it on.
 
 ## CLI
 

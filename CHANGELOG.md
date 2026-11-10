@@ -14,7 +14,7 @@
 
 ### Security
 - `js-yaml` 4.2.0 → 4.3.2 and `smol-toml` 1.6.1 → 1.9.1, so a crafted YAML or TOML file can no longer pin the CPU in the web app or the CLI. Fixes GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj and GHSA-2883-xcg3-v3hh (js-yaml), GHSA-7w5x-hrqm-74c2 and GHSA-r4xh-jqrq-34v2 (smol-toml).
-- CLI output shows control characters in keys and values as escapes, so a config file can't send escape sequences to your terminal.
+- Table and CSV output and error messages show control characters from config files as escapes, so a file you diff can't drive your terminal through them.
 
 ## 2.0.0 — 2026-06-11
 
