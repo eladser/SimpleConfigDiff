@@ -151,6 +151,14 @@ function fold(value, options) {
 }
 
 /**
+ * YAML and TOML dates parse to Dates. Two are the same when their time is,
+ * a Date against anything else never is.
+ */
+function sameDate(a, b) {
+  return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+}
+
+/**
  * Turn an --ignore pattern into a regex with the same rules as the web app's
  * glob path rules (PathMatcher.globMatch in src/utils/advancedComparison.ts):
  * * stays inside one segment, ** crosses segments, ? is one non-dot character.
@@ -279,10 +287,11 @@ function compareConfigs(left, right, path = '', options = {}) {
         newValue: undefined
       });
     } else if (typeof leftValue === 'object' && typeof rightValue === 'object' && 
-               leftValue !== null && rightValue !== null) {
+               leftValue !== null && rightValue !== null &&
+               !(leftValue instanceof Date) && !(rightValue instanceof Date)) {
       // Recursively compare objects
       changes.push(...compareConfigs(leftValue, rightValue, currentPath, options));
-    } else if (fold(leftValue, options) !== fold(rightValue, options)) {
+    } else if (!sameDate(leftValue, rightValue) && fold(leftValue, options) !== fold(rightValue, options)) {
       changes.push({
         path: currentPath,
         type: 'changed',

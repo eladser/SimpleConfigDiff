@@ -40,14 +40,17 @@ class AdvancedDiffGenerator {
       return diffs;
     }
     
-    // Regular equality check
-    if (transformedLeft === transformedRight) {
+    // Regular equality check. YAML and TOML dates parse to Dates, equal when the time is.
+    if (transformedLeft === transformedRight ||
+        (transformedLeft instanceof Date && transformedRight instanceof Date &&
+         transformedLeft.getTime() === transformedRight.getTime())) {
       return diffs;
     }
     
-    // Handle primitive values
+    // Handle primitive values. A Date is one too, it has no keys to walk.
     if (typeof transformedLeft !== 'object' || typeof transformedRight !== 'object' || 
-        transformedLeft === null || transformedRight === null) {
+        transformedLeft === null || transformedRight === null ||
+        transformedLeft instanceof Date || transformedRight instanceof Date) {
       if (transformedLeft === undefined) {
         diffs.push({ kind: 'N', path, rhs: transformedRight });
       } else if (transformedRight === undefined) {
@@ -140,7 +143,7 @@ export function flattenObject(obj: any, prefix = ''): Record<string, any> {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       const newKey = prefix ? `${prefix}.${key}` : key;
       
-      if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+      if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key]) && !(obj[key] instanceof Date)) {
         Object.assign(flattened, flattenObject(obj[key], newKey));
       } else {
         flattened[newKey] = obj[key];

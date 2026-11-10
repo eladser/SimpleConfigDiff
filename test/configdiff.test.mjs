@@ -374,6 +374,66 @@ test('table and csv show false, 0, null and "" as values, objects and lists as J
   ]);
 });
 
+function filePair(name, ext, left, right) {
+  const l = join(dir, `${name}-l.${ext}`);
+  const r = join(dir, `${name}-r.${ext}`);
+  writeFileSync(l, left);
+  writeFileSync(r, right);
+  return [l, r];
+}
+
+// js-yaml and smol-toml both parse these to Date objects, printed as toISOString()
+const dates = {
+  'yaml date': ['yaml', 'released: 2024-01-01\n', 'released: 2025-06-01\n', '2024-01-01T00:00:00.000Z', '2025-06-01T00:00:00.000Z'],
+  'yaml datetime': ['yaml', 'deployed: 2024-01-01T10:00:00Z\n', 'deployed: 2024-01-01T10:30:00Z\n',
+    '2024-01-01T10:00:00.000Z', '2024-01-01T10:30:00.000Z'],
+  'toml date': ['toml', 'released = 2024-01-01\n', 'released = 2025-06-01\n', '2024-01-01', '2025-06-01'],
+  'toml datetime': ['toml', 'deployed = 2024-01-01T10:00:00Z\n', 'deployed = 2024-01-01T10:30:00Z\n',
+    '2024-01-01T10:00:00.000Z', '2024-01-01T10:30:00.000Z'],
+  'toml local datetime': ['toml', 'at = 2024-01-01T10:00:00\n', 'at = 2024-01-01T10:30:00\n',
+    '2024-01-01T10:00:00.000', '2024-01-01T10:30:00.000'],
+  'toml local time': ['toml', 't = 07:32:00\n', 't = 07:33:00\n', '07:32:00.000', '07:33:00.000'],
+};
+
+test('a changed date is one changed row and exit 1, an equal one is nothing and exit 0', () => {
+  for (const [name, [ext, left, right, a, b]] of Object.entries(dates)) {
+    const key = left.split(/[:= ]/)[0];
+    const [l, r] = filePair(name.replaceAll(' ', '-'), ext, left, right);
+    const res = run([l, r, '-o', 'json']);
+    assert.deepEqual(JSON.parse(res.stdout), [{ path: key, type: 'changed', oldValue: a, newValue: b }], name);
+    assert.equal(res.status, 1, name);
+    assert.deepEqual(tableRows(run([l, r]).stdout), [[key, 'changed', a, b]], name);
+
+    const same = run([l, l, '-o', 'json']);
+    assert.deepEqual(JSON.parse(same.stdout), [], name);
+    assert.equal(same.status, 0, name);
+  }
+});
+
+test('dates compare by time, nested and in arrays too', () => {
+  const [l, r] = filePair('date-instant', 'yaml', 'deployed: 2024-01-01 12:00:00 +02:00\n', 'deployed: 2024-01-01T10:00:00Z\n');
+  assert.equal(run([l, r]).status, 0);
+
+  const [l2, r2] = filePair('date-nested', 'toml',
+    '[build]\nat = 2024-01-01T10:00:00Z\ndays = [2024-01-01, 2024-01-02]\n',
+    '[build]\nat = 2024-01-01T11:00:00Z\ndays = [2024-01-01, 2024-01-03]\n');
+  assert.deepEqual(JSON.parse(run([l2, r2, '-o', 'json']).stdout), [
+    { path: 'build.at', type: 'changed', oldValue: '2024-01-01T10:00:00.000Z', newValue: '2024-01-01T11:00:00.000Z' },
+    { path: 'build.days.1', type: 'changed', oldValue: '2024-01-02', newValue: '2024-01-03' },
+  ]);
+});
+
+test('a date against a string, a number or an object is still a change', () => {
+  for (const [other, shown] of [["'2024-01-01'", '2024-01-01'], ['1704067200000', 1704067200000], ['{ day: 1 }', { day: 1 }]]) {
+    const [l, r] = filePair('date-vs', 'yaml', `released: ${other}\n`, 'released: 2024-01-01\n');
+    const res = run([l, r, '-o', 'json']);
+    assert.deepEqual(JSON.parse(res.stdout), [
+      { path: 'released', type: 'changed', oldValue: shown, newValue: '2024-01-01T00:00:00.000Z' },
+    ], other);
+    assert.equal(res.status, 1, other);
+  }
+});
+
 test('added INI sections print as JSON in table and csv, masked or not', () => {
   const l = join(dir, 'sections-l.ini');
   const r = join(dir, 'sections-r.ini');
