@@ -7,6 +7,7 @@
 
 ### Fixed
 - Secret masking catches odd casing like `PassWord` and `DbPassWord`, and no longer hides token counts like `max_tokens` or a bare `PWD`.
+- Secret masking covers the values under `data` and `stringData` in a Kubernetes Secret, and the `value` of an XML `<add key="..." value="..."/>` whose key looks secret, like `DbPassword`.
 - CLI table and CSV cells show `false`, `0`, `null` and `""` instead of a blank, print objects and lists as JSON and dates as ISO, and no longer crash on an added INI section or TOML table.
 - Changed YAML and TOML dates and times count as changes in the web app and the CLI. Any two used to compare as equal, so the CLI exited 0.
 

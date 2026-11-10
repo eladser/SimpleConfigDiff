@@ -516,3 +516,91 @@ test('--watch prints the same line, on the first run and after a change', { time
     assert.equal(ln, `Error: Failed to parse ${r} as yaml at line 3, column 7`);
   }
 });
+
+// DB_PASS and conn aren't secret names, only kind: Secret makes them so
+const manifest = {
+  yaml: (kind, s) => `apiVersion: v1\nkind: ${kind}\nmetadata:\n  name: db-${s}\ndata:\n  DB_PASS: aHVudGVy${s}\n` +
+    `stringData:\n  conn: Server=x;Password=hunter${s}\n`,
+  json: (kind, s) => JSON.stringify({ apiVersion: 'v1', kind, metadata: { name: `db-${s}` },
+    data: { DB_PASS: `aHVudGVy${s}` }, stringData: { conn: `Server=x;Password=hunter${s}` } }),
+};
+
+const webConfig = (adds) => `<?xml version="1.0"?>
+<configuration>
+  <appSettings>
+${adds.map(([k, v]) => `    <add key="${k}" value="${v}" />`).join('\n')}
+  </appSettings>
+</configuration>
+`;
+
+// rows as [path, type, old, new] give the same cells in table, csv and json
+function sameInEveryFormat(l, r, rows, label) {
+  assert.deepEqual(tableRows(run([l, r]).stdout), rows, label);
+  assert.deepEqual(csvRows(run([l, r, '-o', 'csv']).stdout), rows.map((row) => row.map((c) => `"${c}"`).join(',')), label);
+  assert.deepEqual(JSON.parse(run([l, r, '-o', 'json']).stdout),
+    rows.map(([path, type, oldValue, newValue]) => ({ path, type, oldValue, newValue })), label);
+}
+
+test('a Secret masks data and stringData in table, csv and json, a ConfigMap with the same keys does not', () => {
+  for (const [ext, text] of Object.entries(manifest)) {
+    for (const kind of ['Secret', 'ConfigMap']) {
+      const [l, r] = filePair(`k8s-${kind}`, ext, text(kind, 1), text(kind, 2));
+      const hide = (v) => (kind === 'Secret' ? MASK : v);
+      sameInEveryFormat(l, r, [
+        ['metadata.name', 'changed', 'db-1', 'db-2'],
+        ['data.DB_PASS', 'changed', hide('aHVudGVy1'), hide('aHVudGVy2')],
+        ['stringData.conn', 'changed', hide('Server=x;Password=hunter1'), hide('Server=x;Password=hunter2')],
+      ], `${kind} ${ext}`);
+    }
+  }
+
+  // data that shows up whole is masked whole
+  const [l, r] = pair('k8s-added', { kind: 'Secret' }, { kind: 'Secret', data: { DB_PASS: 'aHVudGVy1' } });
+  assert.deepEqual(tableRows(run([l, r]).stdout), [['data', 'added', '', MASK]]);
+  assert.deepEqual(JSON.parse(run([l, r, '-o', 'json']).stdout), [{ path: 'data', type: 'added', newValue: MASK }]);
+});
+
+test('an XML add masks its value in table, csv and json when the key is a secret name', () => {
+  const [l, r] = filePair('webconfig', 'xml',
+    webConfig([['DbPassword', 'hunter2'], ['Theme', 'dark']]),
+    webConfig([['DbPassword', 'hunter3'], ['Theme', 'light']]));
+  sameInEveryFormat(l, r, [
+    ['configuration.appSettings.add.0.@_value', 'changed', MASK, MASK],
+    ['configuration.appSettings.add.1.@_value', 'changed', 'dark', 'light'],
+  ]);
+
+  // one add parses to an object, not an array
+  const [l1, r1] = filePair('webconfig-one', 'xml', webConfig([['DbPassword', 'hunter2']]), webConfig([['DbPassword', 'hunter3']]));
+  sameInEveryFormat(l1, r1, [['configuration.appSettings.add.@_value', 'changed', MASK, MASK]]);
+  const [l2, r2] = filePair('webconfig-theme', 'xml', webConfig([['Theme', 'dark']]), webConfig([['Theme', 'light']]));
+  sameInEveryFormat(l2, r2, [['configuration.appSettings.add.@_value', 'changed', 'dark', 'light']]);
+
+  const [l3, r3] = filePair('webconfig-added', 'xml',
+    webConfig([['Theme', 'dark'], ['Mode', 'x']]),
+    webConfig([['Theme', 'dark'], ['Mode', 'x'], ['ApiKey', 'hunter4']]));
+  assert.deepEqual(JSON.parse(run([l3, r3, '-o', 'json']).stdout), [
+    { path: 'configuration.appSettings.add.2', type: 'added', newValue: { '@_key': 'ApiKey', '@_value': MASK } },
+  ]);
+});
+
+test('--show-secrets prints Secret data and XML add values, and masking keeps types and counts', () => {
+  const pairs = {
+    secret: filePair('k8s-shown', 'yaml', manifest.yaml('Secret', 2), manifest.yaml('Secret', 3)),
+    xml: filePair('webconfig-shown', 'xml', webConfig([['DbPassword', 'hunter2']]), webConfig([['DbPassword', 'hunter3'], ['Theme', 'x']])),
+  };
+  for (const [name, [l, r]] of Object.entries(pairs)) {
+    for (const o of ['table', 'csv', 'json']) {
+      const masked = run([l, r, '-o', o]).stdout;
+      assert.ok(!masked.includes('hunter'), `${name} ${o}`);
+      const shown = run([l, r, '-o', o, '--show-secrets']).stdout;
+      assert.ok(shown.includes('hunter2') && shown.includes('hunter3'), `${name} ${o}`);
+      assert.ok(!shown.includes(MASK), `${name} ${o}`);
+    }
+    const types = (flags) => {
+      const res = run([l, r, '-o', 'json', ...flags]);
+      return [res.status, JSON.parse(res.stdout).map((c) => [c.path, c.type])];
+    };
+    assert.deepEqual(types([]), types(['--show-secrets']), name);
+    assert.equal(run([l, r, '-o', 'summary']).stdout, run([l, r, '-o', 'summary', '--show-secrets']).stdout, name);
+  }
+});

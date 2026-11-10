@@ -175,9 +175,9 @@ test('secret keys in an array of objects mask in place', () => {
   assert.deepEqual(m.changes.find((c) => c.path === 'extra').newValue, { replicas: [{ host: 'h', password: MASK }] });
 });
 
-function diffText(format, l, r) {
+function diffText(format, l, r, opts = {}) {
   const file = (name, content) => ({ name, format, content, parsedContent: parseConfig(content, format).data });
-  return generateDiff(file(`l.${format}`, l), file(`r.${format}`, r), DEFAULTS);
+  return generateDiff(file(`l.${format}`, l), file(`r.${format}`, r), { ...DEFAULTS, ...opts });
 }
 
 test('dates beside a password come through masking untouched', () => {
@@ -200,6 +200,114 @@ test('dates beside a password come through masking untouched', () => {
     assert.equal(extra.at, res.changes.find((c) => c.path === 'extra').newValue.at, fmt);
     assert.ok(exportDiff(m, DEFAULTS, 'json').includes('2024-02-02'), fmt);
   }
+});
+
+// DB_PASS and conn aren't secret names, only the Secret around them makes them so
+const manifest = (kind, s) => `apiVersion: v1
+kind: ${kind}
+metadata:
+  name: db
+data:
+  DB_PASS: S3CR3T-${s}-1
+  tls.crt: S3CR3T-${s}-2
+stringData:
+  conn: Server=x;Password=S3CR3T-${s}-3
+`;
+
+const exportsOf = (m) => [...['json', 'csv', 'html', 'patch'].map((f) => exportDiff(m, DEFAULTS, f)), exportExcel(m, DEFAULTS)];
+
+test('a Kubernetes Secret masks everything under data and stringData, a ConfigMap does not', () => {
+  const doc = (kind, s) => ({ apiVersion: 'v1', kind, metadata: { name: `db-${s}` },
+    data: { DB_PASS: `S3CR3T-${s}-1`, 'tls.crt': `S3CR3T-${s}-2` }, stringData: { conn: `S3CR3T-${s}-3` } });
+  for (const opts of [{}, { flattenKeys: true }, { caseSensitive: true }]) {
+    const label = JSON.stringify(opts);
+    const res = diff(doc('Secret', 'l'), doc('Secret', 'r'), opts);
+    const m = maskResult(res);
+    const byPath = Object.fromEntries(m.changes.map((c) => [c.path, c]));
+    const conn = opts.caseSensitive ? 'stringData.conn' : 'stringdata.conn';
+    for (const p of ['data.DB_PASS', 'data.tls.crt', conn]) {
+      assert.equal(byPath[p].type, 'changed', `${p} ${label}`);
+      assert.equal(byPath[p].oldValue, MASK, `${p} ${label}`);
+      assert.equal(byPath[p].newValue, MASK, `${p} ${label}`);
+    }
+    assert.equal(byPath['metadata.name'].newValue, 'db-r', label);
+    assert.deepEqual(m.summary, res.summary, label);
+    assert.deepEqual(m.changes.map((c) => [c.path, c.type]), res.changes.map((c) => [c.path, c.type]), label);
+    assert.ok(!JSON.stringify(m).includes('S3CR3T'), label);
+    for (const out of exportsOf(m)) assert.ok(!out.includes('S3CR3T'), label);
+    assert.ok(JSON.stringify(res).includes('S3CR3T-r-3'), label);
+
+    const cm = diff(doc('ConfigMap', 'l'), doc('ConfigMap', 'r'), opts);
+    assert.equal(maskResult(cm), cm, label);
+  }
+
+  // data added in one go
+  const added = maskResult(diff({ kind: 'Secret' }, { kind: 'Secret', data: { DB_PASS: 'S3CR3T-1' } }));
+  assert.deepEqual(added.changes.map((c) => [c.path, c.type, c.newValue]), [['data', 'added', MASK]]);
+
+  // each side goes by its own kind, so a ConfigMap turned Secret masks only the new side
+  const turned = maskResult(diff(doc('ConfigMap', 'l'), doc('Secret', 'r')));
+  const byPath = Object.fromEntries(turned.changes.map((c) => [c.path, c]));
+  assert.deepEqual([byPath.kind.oldValue, byPath.kind.newValue], ['ConfigMap', 'Secret']);
+  assert.deepEqual([byPath['data.DB_PASS'].oldValue, byPath['data.DB_PASS'].newValue], ['S3CR3T-l-1', MASK]);
+  assert.deepEqual(turned.leftFile.parsedContent.data, { DB_PASS: 'S3CR3T-l-1', 'tls.crt': 'S3CR3T-l-2' });
+  assert.equal(turned.rightFile.parsedContent.data, MASK);
+  assert.ok(!JSON.stringify(turned).includes('S3CR3T-r'));
+});
+
+test('a pasted Secret manifest masks in the Kubernetes view and every export', () => {
+  const res = diffText('yaml', manifest('Secret', 'l'), manifest('Secret', 'r'));
+  // parseKubernetes files the document under _documents, _byKind and _byNamespace
+  assert.ok(res.leftFile.parsedContent._documents);
+  const m = maskResult(res);
+  assert.ok(!JSON.stringify(m).includes('S3CR3T'));
+  for (const out of exportsOf(m)) assert.ok(!out.includes('S3CR3T'));
+  assert.equal(m.changes.find((c) => c.path === '_documents[0]').newValue.data, MASK);
+  assert.deepEqual(m.summary, res.summary);
+  assert.ok(JSON.stringify(res).includes('S3CR3T-r-1'));
+
+  const cm = maskResult(diffText('yaml', manifest('ConfigMap', 'l'), manifest('ConfigMap', 'r')));
+  const data = cm.changes.find((c) => c.path === '_documents[0]').newValue.data;
+  assert.deepEqual(data, { DB_PASS: 'S3CR3T-r-1', 'tls.crt': 'S3CR3T-r-2' });
+});
+
+const webConfig = (adds) => `<?xml version="1.0"?>
+<configuration>
+  <appSettings>
+${adds.map(([k, v]) => `    <add key="${k}" value="${v}" />`).join('\n')}
+  </appSettings>
+</configuration>
+`;
+
+test('an XML add masks its value when the key is a secret name', () => {
+  // two adds parse to an array, one to a plain object
+  const pairs = [
+    [[['DbPassword', 'S3CR3T-1'], ['Theme', 'dark']], [['DbPassword', 'S3CR3T-2'], ['Theme', 'light']]],
+    [[['DbPassword', 'S3CR3T-1']], [['DbPassword', 'S3CR3T-2']]],
+  ];
+  for (const opts of [{}, { flattenKeys: true }]) {
+    const label = JSON.stringify(opts);
+    for (const [l, r] of pairs) {
+      const res = diffText('xml', webConfig(l), webConfig(r), opts);
+      const m = maskResult(res);
+      assert.ok(!JSON.stringify(m).includes('S3CR3T'), label);
+      for (const out of exportsOf(m)) assert.ok(!out.includes('S3CR3T'), label);
+      assert.deepEqual(m.summary, res.summary, label);
+      assert.ok(JSON.stringify(res).includes('S3CR3T-2'), label);
+    }
+  }
+
+  const two = maskResult(diffText('xml', webConfig(pairs[0][0]), webConfig(pairs[0][1])));
+  assert.deepEqual(two.changes.map((c) => [c.path, c.oldValue, c.newValue]), [
+    ['configuration.appSettings.add[0]', { '@_key': 'DbPassword', '@_value': MASK }, { '@_key': 'DbPassword', '@_value': MASK }],
+    ['configuration.appSettings.add[1]', { '@_key': 'Theme', '@_value': 'dark' }, { '@_key': 'Theme', '@_value': 'light' }],
+  ]);
+  const one = maskResult(diffText('xml', webConfig(pairs[1][0]), webConfig(pairs[1][1])));
+  assert.deepEqual(one.changes.map((c) => [c.path, c.oldValue, c.newValue]),
+    [['configuration.appSettings.add.@_value', MASK, MASK]]);
+
+  const plain = diffText('xml', webConfig([['Theme', 'dark']]), webConfig([['Theme', 'light']]));
+  assert.equal(maskResult(plain), plain);
 });
 
 test('masking goes by the key as written, also after generateDiff lowercases it', () => {
@@ -264,6 +372,49 @@ test('web and CLI matchers agree on the same keys and share the regex source', (
     const changes = JSON.parse(res.stdout);
     assert.equal(changes.length, keys.size);
     for (const c of changes) assert.equal(c.newValue === MASK, isSecretKey(c.path), c.path);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('web and CLI mask the same Secret data and XML add values', () => {
+  const doc = (kind, s, more = {}) => ({ apiVersion: 'v1', kind, metadata: { name: `db-${s}` },
+    data: { DB_PASS: `v-${s}`, 'tls.crt': `v-${s}` }, stringData: { conn: `v-${s}` }, ...more });
+  const add = (k, v) => ({ '@_key': k, '@_value': v });
+  const xml = (a) => ({ configuration: { appSettings: { add: a } } });
+  // The web shows a changed array item whole where the CLI goes into it, so
+  // arrays here only grow
+  const cases = [
+    [doc('Secret', 'l'), doc('Secret', 'r', { data: { DB_PASS: 'v-r', NEW: 'v-r' } })],
+    [doc('ConfigMap', 'l'), doc('ConfigMap', 'r')],
+    [doc('ConfigMap', 'l'), doc('Secret', 'r')],
+    [{ kind: 'Secret' }, doc('Secret', 'r')],
+    [{ kind: 'List', items: [] }, { kind: 'List', items: [doc('Secret', 'r'), doc('ConfigMap', 'r')] }],
+    [xml(add('DbPassword', 'v-l')), xml(add('DbPassword', 'v-r'))],
+    [xml(add('Theme', 'v-l')), xml(add('Theme', 'v-r'))],
+    [xml([add('Theme', 'v-l')]), xml([add('Theme', 'v-l'), add('ApiKey', 'v-r'), add('Mode', 'v-r')])],
+    [{}, xml(add('ConnectionToken', 'v-r'))],
+  ];
+
+  const dir = mkdtempSync(join(tmpdir(), 'mask-parity-'));
+  try {
+    const cli = fileURLToPath(new URL('../../bin/configdiff.js', import.meta.url));
+    const rows = (changes) => changes
+      .map((c) => [c.path.replace(/\[(\d+)\]/g, '.$1'), c.type, c.oldValue, c.newValue])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    let masked = 0;
+    for (const [i, [left, right]] of cases.entries()) {
+      const l = join(dir, `${i}-l.json`);
+      const r = join(dir, `${i}-r.json`);
+      writeFileSync(l, JSON.stringify(left));
+      writeFileSync(r, JSON.stringify(right));
+      const res = spawnSync(process.execPath, [cli, l, r, '-o', 'json'], { encoding: 'utf8' });
+      const web = rows(maskResult(diff(left, right, { caseSensitive: true })).changes);
+      assert.deepEqual(rows(JSON.parse(res.stdout)), web, JSON.stringify(right));
+      masked += JSON.stringify(web).split(MASK).length - 1;
+    }
+    // so the two can't pass by both masking nothing
+    assert.equal(masked, 17);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
