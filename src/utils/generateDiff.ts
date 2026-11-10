@@ -109,9 +109,9 @@ class AdvancedDiffGenerator {
       const leftValue = transformedLeft[key];
       const rightValue = transformedRight[key];
       
-      if (!(key in transformedLeft)) {
+      if (!Object.hasOwn(transformedLeft, key)) {
         diffs.push({ kind: 'N', path: [...path, key], rhs: rightValue });
-      } else if (!(key in transformedRight)) {
+      } else if (!Object.hasOwn(transformedRight, key)) {
         diffs.push({ kind: 'D', path: [...path, key], lhs: leftValue });
       } else {
         const subDiffs = this.simpleDiff(leftValue, rightValue, [...path, key]);
@@ -159,11 +159,8 @@ export function processObject(obj: any, options: DiffOptions): any {
   
   // Apply case sensitivity
   if (!options.caseSensitive) {
-    const newObj: any = {};
-    Object.keys(processed).forEach(key => {
-      newObj[key.toLowerCase()] = processed[key];
-    });
-    processed = newObj;
+    // fromEntries, since assigning a __proto__ key would set the prototype
+    processed = Object.fromEntries(Object.entries(processed).map(([k, v]) => [k.toLowerCase(), v]));
   }
   
   // Remove ignored keys
