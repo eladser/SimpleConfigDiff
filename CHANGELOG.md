@@ -10,6 +10,9 @@
 - CLI table and CSV cells show `false`, `0`, `null` and `""` instead of a blank, print objects and lists as JSON and dates as ISO, and no longer crash on an added INI section or TOML table.
 - Changed YAML and TOML dates and times count as changes in the web app and the CLI. Any two used to compare as equal, so the CLI exited 0.
 
+### Security
+- CLI parse errors give the file, format, line and column, and no longer quote the lines around the error, which could hold secrets. `--show-secrets` prints the parser's full message.
+
 ## 2.1.0 - 2026-11-10
 
 ### Added

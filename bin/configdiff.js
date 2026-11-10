@@ -97,9 +97,24 @@ function detectFormat(filename) {
 }
 
 /**
- * Parse configuration file content
+ * Where a parse error is, counted from 1. js-yaml's mark counts from 0,
+ * smol-toml's line and column from 1, and JSON.parse only has an offset in
+ * its message, and not always.
  */
-function parseConfig(content, format) {
+function errorPosition(error, content) {
+  if (error.mark) return { line: error.mark.line + 1, column: error.mark.column + 1 };
+  if (typeof error.line === 'number') return { line: error.line, column: error.column };
+  const m = /at position (\d+)(?: \(line \d+ column \d+\))?$/.exec(error.message);
+  if (!m) return null;
+  const lines = content.slice(0, Number(m[1])).split(/\r\n|\r|\n/);
+  return { line: lines.length, column: lines.at(-1).length + 1 };
+}
+
+/**
+ * Parse configuration file content. Parser messages quote the lines around
+ * the error, secrets and all, so only --show-secrets passes them on.
+ */
+function parseConfig(content, format, file, showSecrets) {
   try {
     switch (format) {
       case 'json':
@@ -134,7 +149,9 @@ function parseConfig(content, format) {
         return { content };
     }
   } catch (error) {
-    throw new Error(`Failed to parse ${format} file: ${error.message}`);
+    if (showSecrets) throw new Error(`Failed to parse ${format} file: ${error.message}`);
+    const at = errorPosition(error, content);
+    throw new Error(`Failed to parse ${printable(file)} as ${format}${at ? ` at line ${at.line}, column ${at.column}` : ''}`);
   }
 }
 
@@ -377,8 +394,8 @@ async function compareFiles(leftPath, rightPath, options) {
   }
 
   // Parse configurations
-  const leftConfig = parseConfig(leftContent, leftFormat);
-  const rightConfig = parseConfig(rightContent, rightFormat);
+  const leftConfig = parseConfig(leftContent, leftFormat, leftPath, options.showSecrets);
+  const rightConfig = parseConfig(rightContent, rightFormat, rightPath, options.showSecrets);
 
   // Compare
   const changes = compareConfigs(leftConfig, rightConfig, '', options);
