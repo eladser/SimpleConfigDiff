@@ -235,8 +235,18 @@ test('web and CLI matchers agree on the same keys and share the regex source', (
   assert.equal(lits('./maskSecrets.ts').length, 2);
   assert.deepEqual(lits('../../bin/configdiff.js'), lits('./maskSecrets.ts'));
 
+  // the quick pre-filter in front of each matcher has to let every term through
+  const line = lits('./maskSecrets.ts').find((s) => s.startsWith('const SECRET_KEY'));
+  const terms = line.match(/\/\(([^)]*)\)/)[1].split('|').map((t) => t.replaceAll('[-_]?', ''));
+  for (const t of terms) {
+    // a bare pwd is left out on purpose, so check it inside a longer key
+    assert.equal(isSecretKey(t === 'pwd' ? 'db_pwd' : t), true, t);
+    assert.equal(isSecretKey(`${t}s`), true, `${t}s`);
+  }
+
   const words = ['max', 'db', 'Pass', 'Word', 'Wd', 'pwd', 'PWD', 'token', 'TOKENS', 'Count', 'per', 'auth', 'or', 'secret', 'Key'];
-  const keys = new Set([...oddCase, ...counts, ...tokens, ...pwds, ...stillSecret, 'PWD', 'pwd', 'env.PWD', 'author', 'authority']);
+  const keys = new Set([...oddCase, ...counts, ...tokens, ...pwds, ...stillSecret, 'PWD', 'pwd', 'env.PWD', 'author', 'authority',
+    ...terms, ...terms.map((t) => `${t}s`)]);
   for (const a of words) {
     for (const sep of ['', '_', '-', '.']) {
       for (const b of words) keys.add(a + sep + b);
