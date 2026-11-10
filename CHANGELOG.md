@@ -1,9 +1,20 @@
 # Changelog
 
-## 2.0.1 - 2026-11-10
+## 2.1.0 - 2026-11-10
+
+### Added
+- "Copy link" in the header puts both configs and the comparison options in the URL `#` fragment, which never reaches a server. Opening the link restores the diff.
+- Values under keys like `password`, `token` or `api_key` show as dots in the web views, exports and CLI output, but are still compared. "Show secrets" and `--show-secrets` reveal them.
+- CLI `--ignore <pattern>` (repeatable) and an optional `.configdiffrc.json` in the working directory drop matching paths from the output and the exit code.
+
+### Fixed
+- The web app detects pasted TOML as TOML instead of INI.
+- The CLI turns color off for `--no-color`, a non-empty `NO_COLOR` and output that isn't a terminal, and never writes it to `--output-file`.
+- CLI `--ignore-case` and `--ignore-whitespace` now change the comparison. They used to be accepted and then never read.
 
 ### Security
 - `js-yaml` 4.2.0 → 4.3.2 and `smol-toml` 1.6.1 → 1.9.1, so a crafted YAML or TOML file can no longer pin the CPU in the web app or the CLI. Fixes GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj and GHSA-2883-xcg3-v3hh (js-yaml), GHSA-7w5x-hrqm-74c2 and GHSA-r4xh-jqrq-34v2 (smol-toml).
+- Table and CSV output and error messages show control characters from config files as escapes, so a file you diff can't drive your terminal through them.
 
 ## 2.0.0 — 2026-06-11
 
