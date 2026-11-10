@@ -1,4 +1,5 @@
 import { ParsedConfig, ConfigFormat } from '@/types';
+import { setOwn } from './parseProperties';
 
 export function parseHCL(content: string): ParsedConfig {
   try {
@@ -22,8 +23,8 @@ export function parseHCL(content: string): ParsedConfig {
       if (blockMatch) {
         const [, blockType, name, identifier] = blockMatch;
         
-        if (!currentSection[blockType]) {
-          currentSection[blockType] = {};
+        if (!Object.hasOwn(currentSection, blockType) || !currentSection[blockType]) {
+          setOwn(currentSection, blockType, {});
         }
         
         let blockKey = name;
@@ -31,7 +32,7 @@ export function parseHCL(content: string): ParsedConfig {
           blockKey = `${name}.${identifier}`;
         }
         
-        currentSection[blockType][blockKey] = {};
+        setOwn(currentSection[blockType], blockKey, {});
         sectionStack.push(currentSection[blockType][blockKey]);
         currentSection = currentSection[blockType][blockKey];
         continue;
@@ -48,7 +49,7 @@ export function parseHCL(content: string): ParsedConfig {
       const kvMatch = trimmed.match(/^(\w+)\s*=\s*(.+)$/);
       if (kvMatch) {
         const [, key, value] = kvMatch;
-        currentSection[key] = parseHCLValue(value);
+        setOwn(currentSection, key, parseHCLValue(value));
         continue;
       }
       
@@ -56,7 +57,7 @@ export function parseHCL(content: string): ParsedConfig {
       const simpleMatch = trimmed.match(/^(\w+)\s+(.+)$/);
       if (simpleMatch) {
         const [, key, value] = simpleMatch;
-        currentSection[key] = parseHCLValue(value);
+        setOwn(currentSection, key, parseHCLValue(value));
       }
     }
     
@@ -110,7 +111,7 @@ function parseHCLValue(value: string): any {
     for (const pair of pairs) {
       const [key, val] = pair.split(':').map(s => s.trim());
       if (key && val) {
-        obj[key.replace(/"/g, '')] = parseHCLValue(val);
+        setOwn(obj, key.replace(/"/g, ''), parseHCLValue(val));
       }
     }
     

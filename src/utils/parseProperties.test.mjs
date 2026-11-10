@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
 let server;
-let parseProperties, generateDiff;
+let parseProperties, generateDiff, hasSecrets, maskValue, MASK;
 
 before(async () => {
   server = await createServer({
@@ -17,6 +17,7 @@ before(async () => {
   });
   ({ parseProperties } = await server.ssrLoadModule('/src/utils/parseProperties.ts'));
   ({ generateDiff } = await server.ssrLoadModule('/src/utils/generateDiff.ts'));
+  ({ hasSecrets, maskValue, MASK } = await server.ssrLoadModule('/src/utils/maskSecrets.ts'));
 });
 
 after(() => server?.close());
@@ -51,8 +52,22 @@ test('the last segment is a key too', () => {
   assert.equal(Object.getPrototypeOf(data.a), Object.prototype);
 });
 
+test('a plain __proto__ line is a key and masking still sees the file', () => {
+  const { data } = parseProperties('__proto__=a,b\npassword=hunter2\n');
+  assert.equal(Object.getPrototypeOf(data), Object.prototype);
+  assert.ok(Object.hasOwn(data, '__proto__'));
+  assert.deepEqual(data.__proto__, ['a', 'b']);
+  assert.equal(hasSecrets(data), true);
+  assert.equal(maskValue(data, '').password, MASK);
+});
+
 test('dotted keys parse as before', () => {
   assert.deepEqual(parseProperties('db.host=x\ndb.port=5432\n').data, { db: { host: 'x', port: 5432 } });
+});
+
+test('plain keys parse as before', () => {
+  const { data } = parseProperties('# app\nname=web\nport=8080\ndebug=true\nhosts=a,b\nempty=\ncolon:value\n! note\n');
+  assert.deepEqual(data, { name: 'web', port: 8080, debug: true, hosts: ['a', 'b'], empty: '', colon: 'value' });
 });
 
 test('list.length still resizes a list', () => {
