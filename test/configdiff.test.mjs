@@ -604,3 +604,47 @@ test('--show-secrets prints Secret data and XML add values, and masking keeps ty
     assert.equal(run([l, r, '-o', 'summary']).stdout, run([l, r, '-o', 'summary', '--show-secrets']).stdout, name);
   }
 });
+
+test('.env, .env.local and .env.production parse as env and mask their secrets', () => {
+  for (const name of ['.env.local', '.env.production', '.env', '.ENV.Prod', 'a.env']) {
+    const sub = join(dir, `envname${name}`);
+    const l = join(sub, 'l', name);
+    const r = join(sub, 'r', name);
+    mkdirSync(join(sub, 'l'), { recursive: true });
+    mkdirSync(join(sub, 'r'), { recursive: true });
+    writeFileSync(l, 'DB_HOST=a\nDB_PASSWORD=hunter2\n');
+    writeFileSync(r, 'DB_HOST=a\nDB_PASSWORD=hunter3\n');
+
+    const table = run([l, r]);
+    assert.deepEqual(tableRows(table.stdout), [['DB_PASSWORD', 'changed', MASK, MASK]], name);
+    assert.equal(table.stderr, '', name);
+    assert.equal(table.status, 1, name);
+
+    const json = run([l, r, '-o', 'json']);
+    assert.deepEqual(JSON.parse(json.stdout), [{ path: 'DB_PASSWORD', type: 'changed', oldValue: MASK, newValue: MASK }], name);
+    assert.equal(json.status, 1, name);
+  }
+
+  // a known extension still picks the format
+  const sub = join(dir, 'envname-yaml');
+  mkdirSync(join(sub, 'l'), { recursive: true });
+  mkdirSync(join(sub, 'r'), { recursive: true });
+  writeFileSync(join(sub, 'l', '.env.yaml'), 'db:\n  password: hunter2\n');
+  writeFileSync(join(sub, 'r', '.env.yaml'), 'db:\n  password: hunter3\n');
+  const yaml = run([join(sub, 'l', '.env.yaml'), join(sub, 'r', '.env.yaml')]);
+  assert.deepEqual(tableRows(yaml.stdout), [['db.password', 'changed', MASK, MASK]]);
+  assert.equal(yaml.status, 1);
+});
+
+test('an unknown format warns on stderr once and leaves stdout and the exit code alone', () => {
+  const [l, r] = filePair('plain', 'txt', 'DB_PASSWORD=hunter2\n', 'DB_PASSWORD=hunter3\n');
+  const res = run([l, r]);
+  assert.equal(res.stderr, 'Warning: unknown file format, compared as plain text with secret masking off. Use --format to pick one.\n');
+  assert.deepEqual(tableRows(res.stdout), [['content', 'changed', 'DB_PASSWORD=hunter2\\n', 'DB_PASSWORD=hunter3\\n']]);
+  assert.equal(res.status, 1);
+  assert.equal(run([l, l]).status, 0);
+
+  const forced = run([l, r, '--format', 'env']);
+  assert.equal(forced.stderr, '');
+  assert.deepEqual(tableRows(forced.stdout), [['DB_PASSWORD', 'changed', MASK, MASK]]);
+});

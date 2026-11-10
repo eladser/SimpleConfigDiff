@@ -92,6 +92,10 @@ function detectFormat(filename) {
       return format;
     }
   }
+
+  // extname of .env is '' and of .env.local is .local, so go by the name.
+  // A known extension still wins, .env.yaml is yaml.
+  if (/^\.env(\..*)?$/i.test(path.basename(filename))) return 'env';
   
   return 'unknown';
 }
@@ -418,6 +422,10 @@ async function compareFiles(leftPath, rightPath, options) {
   // Parse configurations
   const leftConfig = parseConfig(leftContent, leftFormat, leftPath, options.showSecrets);
   const rightConfig = parseConfig(rightContent, rightFormat, rightPath, options.showSecrets);
+
+  if (!options.format && (leftFormat === 'unknown' || rightFormat === 'unknown')) {
+    console.error(colorize('Warning: unknown file format, compared as plain text with secret masking off. Use --format to pick one.', 'yellow', colorErr));
+  }
 
   // Compare
   const changes = compareConfigs(leftConfig, rightConfig, '', options);

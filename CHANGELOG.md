@@ -15,6 +15,7 @@
 - CLI parse errors give the file, format, line and column, and no longer quote the lines around the error, which could hold secrets. `--show-secrets` prints the parser's full message.
 - The HTML and PDF exports escape paths, values and file names, so a config holding markup like `<script>` shows it as text instead of running it when you open the export.
 - A `.properties` line like `__proto__.isAdmin=true`, pasted or opened from a share link, no longer sets a value on every object in the web app. `__proto__`, `constructor` and `prototype` stay ordinary keys.
+- The CLI parses `.env` and names like `.env.local` and `.env.production` as env files, so their secrets are masked. It used to diff them as plain text and print every value. A file whose format it can't tell now gets a warning on stderr.
 
 ## 2.1.0 - 2026-11-10
 

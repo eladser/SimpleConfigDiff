@@ -235,7 +235,7 @@ A key counts as secret when `password`, `passwd`, `pwd`, `secret`, `token`, `api
 Output is colored when it goes to a terminal. Color is off with `--no-color`, when `NO_COLOR` is set to anything non-empty, and when stdout isn't a terminal (piped or redirected). Error messages follow the same rules for stderr. Files written with `--output-file` never contain color codes.
 
 ### Format Detection
-The tool automatically detects file formats based on extensions, but you can override:
+The tool automatically detects file formats based on extensions, and env files are also recognized by name (`.env`, `.env.local`, `.env.production`), but you can override:
 
 ```bash
 # Force YAML parsing for files without .yml extension
