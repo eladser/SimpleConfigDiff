@@ -104,9 +104,9 @@ function detectFormat(filename) {
 function errorPosition(error, content) {
   if (error.mark) return { line: error.mark.line + 1, column: error.mark.column + 1 };
   if (typeof error.line === 'number') return { line: error.line, column: error.column };
-  const m = /at position (\d+)/.exec(error.message);
+  const m = /at position (\d+)(?: \(line \d+ column \d+\))?$/.exec(error.message);
   if (!m) return null;
-  const lines = content.slice(0, Number(m[1])).split('\n');
+  const lines = content.slice(0, Number(m[1])).split(/\r\n|\r|\n/);
   return { line: lines.length, column: lines.at(-1).length + 1 };
 }
 

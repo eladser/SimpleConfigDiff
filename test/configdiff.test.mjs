@@ -488,6 +488,14 @@ test('JSON parse errors give a position when the message has one and never the e
   assert.equal(res2.stderr, `Error: Failed to parse ${r2} as json\n`);
   assert.equal(res2.status, 1);
   assert.ok(run([l2, r2, '--show-secrets']).stderr.includes('hunter2'));
+
+  // the excerpt can itself say "at position", which isn't V8's position
+  const [l3, r3] = filePair('parse-json-spoof', 'json', '{}', '{"x": at position 5}');
+  assert.equal(run([l3, r3]).stderr, `Error: Failed to parse ${r3} as json\n`);
+
+  // V8 counts a lone CR as a line break
+  const [l4, r4] = filePair('parse-json-cr', 'json', '{}', '{\r"pw": "hunter2"\r"port": 1\r}');
+  assert.equal(run([l4, r4]).stderr, `Error: Failed to parse ${r4} as json at line 3, column 1\n`);
 });
 
 test('--watch prints the same line, on the first run and after a change', { timeout: 10000 }, async () => {
