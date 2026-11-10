@@ -24,7 +24,7 @@ export function parseProperties(content: string): ParsedConfig {
         if (cleanKey.includes('.')) {
           setNestedProperty(result, cleanKey, parsePropertyValue(cleanValue));
         } else {
-          result[cleanKey] = parsePropertyValue(cleanValue);
+          setOwn(result, cleanKey, parsePropertyValue(cleanValue));
         }
       }
     }
@@ -76,7 +76,7 @@ function parsePropertyValue(value: string): any {
 }
 
 // Plain assignment to __proto__ would set the prototype instead of a key
-function setOwn(obj: Record<string, any>, key: string, value: any): void {
+export function setOwn(obj: Record<string, any>, key: string, value: any): void {
   if (Object.hasOwn(obj, key)) {
     obj[key] = value;
   } else {
