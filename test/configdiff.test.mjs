@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,13 +27,14 @@ before(() => {
 
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-function run(args, { fakeTty = false, env = {} } = {}) {
+function run(args, { fakeTty = false, env = {}, cwd } = {}) {
   const base = { ...process.env };
   delete base.NO_COLOR;
   const pre = fakeTty ? [tty] : [];
   return spawnSync(process.execPath, [...pre, cli, ...args], {
     encoding: 'utf8',
     env: { ...base, ...env },
+    cwd,
   });
 }
 
@@ -140,4 +141,80 @@ test('ignore flags fold nested strings, not numbers, booleans or keys', () => {
   const res = run([l, r, '-o', 'json', '--ignore-case', '--ignore-whitespace']);
   assert.deepEqual(paths(res), ['port', 'on', 'Key', 'key']);
   assert.equal(res.status, 1);
+});
+
+const ignore = (l, r, ...pats) => paths(run([l, r, '-o', 'json', ...pats.flatMap((p) => ['--ignore', p])]));
+
+test('--ignore takes exact paths, case-sensitive, and drops what is under them', () => {
+  const [l, r] = pair('exact',
+    { version: 1, Version: 1, app: { version: 1 }, build: { time: 1, sha: 1 }, old: 1 },
+    { version: 2, Version: 2, app: { version: 2 }, build: { time: 2, sha: 2 }, new: 1 });
+  assert.deepEqual(ignore(l, r, 'version'), ['Version', 'app.version', 'build.time', 'build.sha', 'old', 'new']);
+  assert.deepEqual(ignore(l, r, 'app.version', 'build', 'old', 'new'), ['version', 'Version']);
+});
+
+test('--ignore * matches one segment, array items included', () => {
+  const [l, r] = pair('star',
+    { password: 1, db: { password: 1 }, a: { b: { password: 1 } }, servers: [{ host: 'a', port: 1 }] },
+    { password: 2, db: { password: 2 }, a: { b: { password: 2 } }, servers: [{ host: 'b', port: 2 }] });
+  assert.deepEqual(ignore(l, r, '*.password'), ['password', 'a.b.password', 'servers.0.host', 'servers.0.port']);
+  assert.deepEqual(ignore(l, r, 'servers.*.host'), ['password', 'db.password', 'a.b.password', 'servers.0.port']);
+});
+
+test('--ignore ** crosses segments, and like the web app **.x skips a top-level x', () => {
+  const [l, r] = pair('globstar',
+    { password: 1, db: { password: 1 }, a: { b: { password: 1, user: 1 } } },
+    { password: 2, db: { password: 2 }, a: { b: { password: 2, user: 2 } } });
+  assert.deepEqual(ignore(l, r, '**.password'), ['password', 'a.b.user']);
+  assert.deepEqual(ignore(l, r, 'a.**'), ['password', 'db.password']);
+  assert.deepEqual(ignore(l, r, '**'), []);
+});
+
+test('ignored paths stay out of every output format', () => {
+  const [l, r] = pair('formats', { version: 1, host: 'a' }, { version: 2, host: 'b' });
+  const out = join(dir, 'formats.out');
+  for (const o of ['table', 'csv', 'json', 'summary']) {
+    const res = run([l, r, '-o', o, '--ignore', 'version']);
+    assert.ok(res.stdout.includes(o === 'summary' ? 'Total: 1' : 'host'), o);
+    assert.ok(!res.stdout.includes('version'), `${o} shows version`);
+    run([l, r, '-o', o, '--ignore', 'version', '--output-file', out]);
+    assert.ok(!readFileSync(out, 'utf8').includes('version'), `${o} file shows version`);
+  }
+  assert.match(run([l, r, '-o', 'summary', '--ignore', 'version']).stdout, /Changed: 1\s+Total: 1/);
+});
+
+test('exit code is 0 when only ignored paths differ, from flags or .configdiffrc.json', () => {
+  const [l, r] = pair('rc', { version: '1.0', build: { time: 1 }, name: 'x' }, { version: '1.1', build: { time: 2 }, name: 'x' });
+  const cwd = join(dir, 'rc');
+  mkdirSync(cwd);
+  assert.equal(run([l, r]).status, 1);
+  assert.equal(run([l, r, '--ignore', 'version']).status, 1);
+  assert.equal(run([l, r, '--ignore', 'version', '--ignore', 'build.*']).status, 0);
+
+  writeFileSync(join(cwd, '.configdiffrc.json'), JSON.stringify({ ignore: ['version', 'build.*'] }));
+  assert.equal(run([l, r], { cwd }).status, 0);
+  assert.equal(run([l, r]).status, 1);
+
+  // the rc file and flags add up
+  writeFileSync(join(cwd, '.configdiffrc.json'), JSON.stringify({ ignore: ['version'] }));
+  assert.equal(run([l, r], { cwd }).status, 1);
+  assert.equal(run([l, r, '--ignore', 'build.*'], { cwd }).status, 0);
+});
+
+test('a malformed .configdiffrc.json is a one-line error', () => {
+  const [l, r] = pair('badrc', { a: 1 }, { a: 1 });
+  const cwd = join(dir, 'badrc');
+  mkdirSync(cwd);
+  for (const body of ['{"ignore": ["a",]}', '{"ignore": "a"}', '{"ignore": [1]}', '["a"]', 'null', '{}']) {
+    writeFileSync(join(cwd, '.configdiffrc.json'), body);
+    const res = run([l, r], { cwd });
+    assert.equal(res.status, 1, body);
+    assert.match(res.stderr, /^Error: .*\.configdiffrc\.json/, body);
+    assert.equal(res.stderr.trim().split('\n').length, 1, body);
+    assert.equal(res.stdout, '', body);
+  }
+});
+
+test('--help lists --ignore', () => {
+  assert.match(run(['--help']).stdout, /--ignore <pattern>/);
 });

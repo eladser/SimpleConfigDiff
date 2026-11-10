@@ -137,6 +137,44 @@ function fold(value, options) {
 }
 
 /**
+ * Turn an --ignore pattern into a regex with the same rules as the web app's
+ * glob path rules (PathMatcher.globMatch in src/utils/advancedComparison.ts):
+ * * stays inside one segment, ** crosses segments, ? is one character.
+ * Array items are segments too, so tags.0 or servers.*.host.
+ */
+function globToRegExp(pattern) {
+  const DOUBLE_STAR = '\x00';
+  const re = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .split('**').join(DOUBLE_STAR)
+    .replace(/\*/g, '[^.]*')
+    .split(DOUBLE_STAR).join('.*')
+    .replace(/\?/g, '[^.]');
+  return new RegExp(`^${re}$`);
+}
+
+const RC_FILE = '.configdiffrc.json';
+
+/**
+ * Ignore patterns from .configdiffrc.json in the working directory, if there is one
+ */
+function readRc() {
+  const file = path.join(process.cwd(), RC_FILE);
+  if (!fs.existsSync(file)) return [];
+
+  let rc;
+  try {
+    rc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    throw new Error(`Can't read ${RC_FILE}: ${printable(error.message)}`);
+  }
+  if (!rc || !Array.isArray(rc.ignore) || !rc.ignore.every((p) => typeof p === 'string')) {
+    throw new Error(`${RC_FILE} should look like { "ignore": ["pattern", ...] }`);
+  }
+  return rc.ignore;
+}
+
+/**
  * Compare two configuration objects
  */
 function compareConfigs(left, right, path = '', options = {}) {
@@ -147,6 +185,9 @@ function compareConfigs(left, right, path = '', options = {}) {
   
   for (const key of allKeys) {
     const currentPath = path ? `${path}.${key}` : key;
+    // an ignored path takes its whole subtree with it, added and removed keys too
+    if ((options.ignoreRules || []).some((re) => re.test(currentPath))) continue;
+
     const leftValue = left[key];
     const rightValue = right[key];
     
@@ -318,6 +359,7 @@ program
   .option('--no-color', 'Disable colored output')
   .option('--ignore-case', 'Ignore case when comparing values')
   .option('--ignore-whitespace', 'Ignore whitespace differences')
+  .option('--ignore <pattern>', 'Ignore a path or glob like build.* or **.password (repeatable)', (p, prev = []) => [...prev, p])
   .action(async (leftFile, rightFile, options) => {
     // https://no-color.org: any non-empty NO_COLOR turns color off
     const color = options.color && !process.env.NO_COLOR;
@@ -344,6 +386,8 @@ program
     
     // Start comparison
     try {
+      options.ignoreRules = [...readRc(), ...(options.ignore || [])].map(globToRegExp);
+
       if (options.watch) {
         await compareFiles(leftFile, rightFile, options).catch((error) => {
           console.error(colorize(`Error: ${printable(error.message, true)}`, 'red', colorErr));
@@ -367,6 +411,10 @@ Examples:
   configdiff .env.local .env.prod --output json --output-file diff.json
   configdiff terraform.tf terraform.prod.tf --watch
   configdiff package.json package-lock.json --force
+  configdiff a.json b.json --ignore version --ignore 'build.*'
+
+Ignore patterns can also live in ${RC_FILE} in the working directory:
+  { "ignore": ["version", "build.*"] }
 `);
 
 program.parse();
