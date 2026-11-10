@@ -53,7 +53,7 @@ test('round trip keeps both configs, formats and the comparison options', async 
 
 test('unicode survives', async () => {
   const left = 'title: שלום עולם\nemoji: "🔑🚀 👩🏽‍💻"\ncjk: 設定ファイル\naccent: "é"\nnul: "a\u0000b"\n';
-  const right = '{"title": "مرحبا", "astral": "𝄞𐍈", "bom": "﻿x", "rtl": "‮abc"}';
+  const right = '{"title": "مرحبا", "astral": "𝄞𐍈", "bom": "\ufeffx", "rtl": "\u202eabc"}';
   const s = shared(left, right, 'yaml', 'json');
   const out = await decodeShare(await encodeShare(s));
   assert.equal(out.left, left);
@@ -69,10 +69,13 @@ test('empty sides round trip', async () => {
 
 test('view-only options stay out of the link', async () => {
   const d = await encodeShare(shared('a: 1\n', 'a: 2\n', 'yaml', 'yaml', { ...OPTS, diffMode: 'tree', showSecrets: true }));
-  const out = await decodeShare(d);
-  for (const k of ['diffMode', 'showLineNumbers', 'contextLines', 'minimalDiff', 'showSecrets']) {
-    assert.equal(k in out.options, false, k);
-  }
+  // read the link itself, decodeShare would filter the options anyway
+  const st = new Blob([Buffer.from(d, 'base64url')]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  const raw = JSON.parse(await new Response(st).text());
+  assert.deepEqual(Object.keys(raw.options).sort(), [
+    'caseSensitive', 'flattenKeys', 'ignoreComments', 'ignoreKeys', 'ignoreWhitespace',
+    'pathRules', 'semanticComparison', 'sortKeys', 'valueTransformations',
+  ]);
 });
 
 test('a big config round trips and the decoded side gives the same diff', async () => {
@@ -97,8 +100,9 @@ test('a big config round trips and the decoded side gives the same diff', async 
   assert.deepEqual(run(out, { ...DEFAULTS, ...out.options }), run(s, OPTS));
 });
 
-async function deflate(text) {
-  const st = new Blob([new TextEncoder().encode(text)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+// takes a string (written as utf-8) or raw bytes
+async function deflate(data) {
+  const st = new Blob([data]).stream().pipeThrough(new CompressionStream('deflate-raw'));
   return Buffer.from(await new Response(st).arrayBuffer()).toString('base64url');
 }
 
@@ -117,6 +121,8 @@ test('bad, truncated or tampered payloads throw', async () => {
     'last bytes cut': good.slice(0, -8),
     'not deflate': Buffer.from('hello world, plain text').toString('base64url'),
     'not json': await deflate('left: a, right: b'),
+    // valid json with 0xff 0xfe in left, a lenient decoder would load it as U+FFFD
+    'invalid utf-8': await deflate(Buffer.from(okJson.replace('"left":"a"', '"left":"\xff\xfe"'), 'latin1')),
     'json array': await deflate('[1, 2]'),
     'left is a number': await deflate(tweak((p) => { p.left = 1; })),
     'right missing': await deflate(tweak((p) => { delete p.right; })),

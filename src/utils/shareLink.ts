@@ -17,7 +17,7 @@ export interface Shared {
 // Chat apps and mail clients start cutting links off somewhere past this
 export const LONG_LINK = 100_000;
 
-// A link of a few KB can inflate to gigabytes, so stop reading well before that
+// An 80 KB link can inflate to 60 MB of text, so stop reading before a hostile link fills memory
 const MAX_TEXT = 50_000_000;
 
 function toBase64Url(bytes: Uint8Array) {
@@ -94,7 +94,7 @@ export async function encodeShare(s: Shared): Promise<string> {
   return toBase64Url(new Uint8Array(await new Response(packed).arrayBuffer()));
 }
 
-// Throws on anything that isn't a complete payload from encodeShare
+// Throws on payloads that don't inflate to a valid share. deflate-raw has no checksum, so a small edit can still decode.
 export async function decodeShare(d: string): Promise<Shared> {
   const reader = new Blob([fromBase64Url(d)]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
   const dec = new TextDecoder('utf-8', { fatal: true });
