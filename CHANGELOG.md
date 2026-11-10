@@ -5,6 +5,9 @@
 ### Changed
 - The CLI needs Node 22.22.2+ or 24.15+, to match its dependencies.
 
+### Fixed
+- Secret masking catches odd casing like `PassWord` and `DbPassWord`, and no longer hides token counts like `max_tokens` or a bare `PWD`.
+
 ## 2.1.0 - 2026-11-10
 
 ### Added

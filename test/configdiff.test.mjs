@@ -307,6 +307,25 @@ test('values with nothing secret under them print as before, dates included', ()
   ]);
 });
 
+test('odd casing masks, token counts and a bare PWD show their values', () => {
+  const hidden = ['PassWord', 'PassWd', 'DbPassWord', 'SecretKey', 'PrivateKEY', 'token', 'tokens', 'authToken',
+    'NPM_TOKEN', 'access_token', 'api_tokens', 'refreshTokens', 'DB_PWD', 'db_pwd', 'pwdHash',
+    'max_password_length', 'auth_token_count'];
+  const shown = ['max_tokens', 'maxTokens', 'max_output_tokens', 'tokens_per_minute', 'token_count', 'num_tokens',
+    'tokenLimit', 'PWD', 'pwd', 'author', 'authority'];
+  const side = (s) => ({
+    ...Object.fromEntries([...hidden, ...shown].map((k) => [k, `${k}-${s}`])),
+    auth: { max_tokens: `auth-${s}` },
+    secrets: { PWD: `secrets-${s}` },
+  });
+  const [l, r] = pair('casing', side('l'), side('r'));
+  const got = Object.fromEntries(JSON.parse(run([l, r, '-o', 'json']).stdout).map((c) => [c.path, c.newValue]));
+  for (const k of hidden) assert.equal(got[k], MASK, k);
+  for (const k of shown) assert.equal(got[k], `${k}-r`, k);
+  assert.equal(got['auth.max_tokens'], MASK);
+  assert.equal(got['secrets.PWD'], MASK);
+});
+
 test('masking works with --ignore and control character escapes', () => {
   const [l, r] = pair('mixed',
     { password: '\u001b[2J', token: 'S3CR3T-1', host: 'a' },

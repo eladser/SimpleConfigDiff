@@ -2,6 +2,10 @@
 // Loaded through vite like parsers.test.mjs, for the @/ alias.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
@@ -30,7 +34,7 @@ test('the mask is six U+2022 bullets', () => {
 
 test('secret keys by word part', () => {
   const yes = [
-    'password', 'db.password', 'DB_PASSWORD', 'passwd', 'pwd', 'secret', 'clientSecret', 'client-secret',
+    'password', 'db.password', 'DB_PASSWORD', 'passwd', 'secret', 'clientSecret', 'client-secret',
     'token', 'AUTH_TOKEN', 'authToken', 'accessToken', 'auth', 'basicAuth', 'apiKey', 'api_key', 'api-key',
     'APIKey', 'apikey', 'x-api-key', 'privateKey', 'private_key', 'PRIVATE-KEY', 'credential', 'credentials',
     'tokens', 'tokens.0', 'tokens[0]', 'secrets.db', 'auth.user', 'dbpassword', 'clientsecret', 'password2',
@@ -45,6 +49,24 @@ test('author, authority and other near misses are not secret', () => {
     'secretary', 'tokenizer', 'passwordless', 'key', 'monkey', 'host', 'db.host', 'tags.0', '',
   ];
   for (const k of no) assert.equal(isSecretKey(k), false, k);
+});
+
+const oddCase = ['PassWord', 'PassWd', 'DbPassWord', 'SecretKey', 'PrivateKEY', 'PassWordHash'];
+const counts = ['max_tokens', 'maxTokens', 'max_output_tokens', 'tokens_per_minute', 'token_count', 'num_tokens', 'tokenLimit'];
+const tokens = ['token', 'tokens', 'authToken', 'NPM_TOKEN', 'access_token', 'api_tokens', 'refreshTokens'];
+const pwds = ['DB_PWD', 'db_pwd', 'pwdHash'];
+// the count and PWD exceptions only lift those terms, the others still hit
+const stillSecret = ['max_password_length', 'auth_token_count', 'auth.max_tokens', 'secrets.PWD', 'tokenLimit.password'];
+
+test('a term split by camelCase still matches', () => {
+  for (const k of oddCase) assert.equal(isSecretKey(k), true, k);
+});
+
+test('token counts and a bare PWD are not secret, other tokens and pwds are', () => {
+  for (const k of [...counts, 'PWD', 'pwd', 'env.PWD']) assert.equal(isSecretKey(k), false, k);
+  for (const k of [...tokens, ...pwds, ...stillSecret]) assert.equal(isSecretKey(k), true, k);
+  // the count word has to sit in the same key as the token
+  for (const k of ['rate_limit.token', 'max.tokens']) assert.equal(isSecretKey(k), true, k);
 });
 
 const DEFAULTS = {
@@ -177,5 +199,72 @@ test('dates beside a password come through masking untouched', () => {
     assert.equal(extra.password, MASK, fmt);
     assert.equal(extra.at, res.changes.find((c) => c.path === 'extra').newValue.at, fmt);
     assert.ok(exportDiff(m, DEFAULTS, 'json').includes('2024-02-02'), fmt);
+  }
+});
+
+test('masking goes by the key as written, also after generateDiff lowercases it', () => {
+  const shown = [...counts, 'PWD'];
+  const hidden = [...oddCase, ...tokens, ...pwds, 'max_password_length', 'auth_token_count'];
+  const side = (s) => ({
+    ...Object.fromEntries(shown.map((k) => [k, `${k}-${s}`])),
+    ...Object.fromEntries(hidden.map((k) => [k, `S3CR3T-${k}-${s}`])),
+    llm: { maxTokens: `llm-${s}`, PassWord: `S3CR3T-llm-${s}` },
+    auth: { max_tokens: `S3CR3T-auth-${s}` },
+  });
+  for (const opts of [{}, { flattenKeys: true }, { caseSensitive: true }]) {
+    const label = JSON.stringify(opts);
+    const m = maskResult(diff(side('l'), side('r'), opts));
+    const byPath = Object.fromEntries(m.changes.map((c) => [c.path, c]));
+    const p = (k) => (opts.caseSensitive ? k : k.toLowerCase());
+    for (const k of shown) assert.equal(byPath[p(k)].newValue, `${k}-r`, `${k} ${label}`);
+    for (const k of hidden) assert.equal(byPath[p(k)].newValue, MASK, `${k} ${label}`);
+    assert.equal(byPath['llm.maxTokens'].newValue, 'llm-r', label);
+    assert.equal(byPath['llm.PassWord'].newValue, MASK, label);
+    assert.equal(byPath['auth.max_tokens'].newValue, MASK, label);
+    assert.ok(!JSON.stringify(m).includes('S3CR3T'), label);
+  }
+
+  // PassWord used to be the only secret here, so nothing got masked
+  const m = maskResult(diff({ PassWord: 'S3CR3T-1', host: 'a' }, { PassWord: 'S3CR3T-2', host: 'b' }));
+  assert.ok(!JSON.stringify(m).includes('S3CR3T'));
+});
+
+test('web and CLI matchers agree on the same keys and share the regex source', () => {
+  const lits = (f) => readFileSync(fileURLToPath(new URL(f, import.meta.url)), 'utf8')
+    .match(/^const (SECRET_KEY|COUNT_WORDS) = .*$/gm);
+  assert.equal(lits('./maskSecrets.ts').length, 2);
+  assert.deepEqual(lits('../../bin/configdiff.js'), lits('./maskSecrets.ts'));
+
+  // the quick pre-filter in front of each matcher has to let every term through
+  const line = lits('./maskSecrets.ts').find((s) => s.startsWith('const SECRET_KEY'));
+  const terms = line.match(/\/\(([^)]*)\)/)[1].split('|').map((t) => t.replaceAll('[-_]?', ''));
+  for (const t of terms) {
+    // a bare pwd is left out on purpose, so check it inside a longer key
+    assert.equal(isSecretKey(t === 'pwd' ? 'db_pwd' : t), true, t);
+    assert.equal(isSecretKey(`${t}s`), true, `${t}s`);
+  }
+
+  const words = ['max', 'db', 'Pass', 'Word', 'Wd', 'pwd', 'PWD', 'token', 'TOKENS', 'Count', 'per', 'auth', 'or', 'secret', 'Key'];
+  const keys = new Set([...oddCase, ...counts, ...tokens, ...pwds, ...stillSecret, 'PWD', 'pwd', 'env.PWD', 'author', 'authority',
+    ...terms, ...terms.map((t) => `${t}s`)]);
+  for (const a of words) {
+    for (const sep of ['', '_', '-', '.']) {
+      for (const b of words) keys.add(a + sep + b);
+    }
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'mask-parity-'));
+  try {
+    const l = join(dir, 'l.json');
+    const r = join(dir, 'r.json');
+    writeFileSync(l, '{}');
+    writeFileSync(r, JSON.stringify(Object.fromEntries([...keys].map((k) => [k, 'v']))));
+    const cli = fileURLToPath(new URL('../../bin/configdiff.js', import.meta.url));
+    const res = spawnSync(process.execPath, [cli, l, r, '-o', 'json'], { encoding: 'utf8' });
+    const changes = JSON.parse(res.stdout);
+    assert.equal(changes.length, keys.size);
+    for (const c of changes) assert.equal(c.newValue === MASK, isSecretKey(c.path), c.path);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
