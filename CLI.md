@@ -2,6 +2,10 @@
 
 A command-line interface for comparing configuration files with support for multiple formats.
 
+## Requirements
+
+Node.js 22.22.2+ or 24.15+.
+
 ## Installation
 
 ```bash
@@ -24,6 +28,7 @@ configdiff <left-file> <right-file>
 
 ### Options
 
+- `-V, --version` - Output the version number
 - `-f, --format <format>` - Force specific format (json, yaml, xml, ini, toml, env, properties)
 - `-o, --output <format>` - Output format (json, csv, table, summary) [default: table]
 - `-w, --watch` - Watch files for changes and recompare
@@ -32,6 +37,9 @@ configdiff <left-file> <right-file>
 - `--no-color` - Disable colored output
 - `--ignore-case` - Ignore case when comparing values
 - `--ignore-whitespace` - Ignore whitespace differences
+- `--ignore <pattern>` - Ignore a path or glob like `build.*` or `**.password` (repeatable)
+- `--show-secrets` - Print values under keys like password, token or api_key instead of masking them
+- `-h, --help` - Display help for command
 
 ### Examples
 
@@ -183,13 +191,29 @@ configdiff .env.development .env.production -o table --no-color
 The CLI tool provides clear error messages for common issues:
 
 - **File not found**: `Error: Left file 'config.json' does not exist`
-- **Format mismatch**: `Warning: File formats differ (json vs yaml). Use --force to compare anyway.`
-- **Parse errors**: `Error: Failed to parse json file: Unexpected token`
+- **Format mismatch**: `Error: File formats differ (json vs yaml). Use --force to compare anyway.`
+- **Parse errors**: `Error: Failed to parse app.yaml as yaml at line 4, column 1`. Line and column show when the parser reports them, and none of the file's text is printed since it could hold secrets. `--show-secrets` prints the parser's full message instead.
 - **Invalid options**: `Error: Invalid output format 'xml'. Valid formats: json, csv, table, summary`
 
 ## Advanced Features
 
 ### Ignore Patterns
+`--ignore` takes a dotted path from the root or a glob, and can be repeated. `*` stays inside one key, `**` crosses levels, and array items count as keys, so `servers.*.host` works. An ignored path drops out of the output and the exit code, along with everything under it.
+
+```bash
+configdiff app.json app.prod.json --ignore version --ignore 'build.*'
+configdiff app.yaml app.prod.yaml --ignore '**.password'
+```
+
+Rules you want on every run can live in `.configdiffrc.json` in the working directory, and they add up with any `--ignore` flags:
+
+```json
+{ "ignore": ["version", "build.*"] }
+```
+
+The CLI only reads the file from the directory you run it in, not from the compared files' folders or parent directories. If it isn't valid JSON, or `ignore` isn't a list of strings, the CLI prints an error and exits with `1`.
+
+### Case and Whitespace
 ```bash
 # Ignore case differences
 configdiff config1.json config2.json --ignore-case
@@ -197,6 +221,18 @@ configdiff config1.json config2.json --ignore-case
 # Ignore whitespace differences
 configdiff config1.yml config2.yml --ignore-whitespace
 ```
+
+### Secret Masking
+Values under keys like `password`, `token` or `api_key` print as dots, in every output format and in `--output-file`, but still count toward the exit code. `--show-secrets` prints them as they are.
+
+```
+db.password | changed | •••••• | ••••••
+```
+
+A key counts as secret when `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `private_key`, `credential` or `auth` (or its plural) ends a word in it, so `dbPassword`, `AUTH_TOKEN` and `client_secret` match while `author` and `tokenizer` don't. Token counts like `max_tokens` or `tokenLimit` and a bare `PWD` stay visible. Everything under a secret key is masked too, and so are the values under `data` and `stringData` in a Kubernetes `kind: Secret` and the `value` of an XML `<add key="DbPassword" value="..."/>` whose key looks secret.
+
+### Color
+Output is colored when it goes to a terminal. Color is off with `--no-color`, when `NO_COLOR` is set to anything non-empty, and when stdout isn't a terminal (piped or redirected). Error messages follow the same rules for stderr. Files written with `--output-file` never contain color codes.
 
 ### Format Detection
 The tool automatically detects file formats based on extensions, but you can override:
@@ -233,12 +269,6 @@ done
 3. **Module Not Found**
    - Install dependencies: `npm install`
    - Check global installation: `npm list -g simple-config-diff`
-
-### Debug Mode
-Set DEBUG environment variable for verbose output:
-```bash
-DEBUG=configdiff configdiff file1.json file2.json
-```
 
 ## Contributing
 
