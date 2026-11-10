@@ -157,7 +157,7 @@ function globToRegExp(pattern) {
 // A term counts when it ends a word, so dbPassword, AUTH_TOKEN and tokens.0
 // match while author, authority, secretary and tokenizer don't.
 const SECRET_KEY = /(password|passwd|pwd|secret|token|api[-_]?key|private[-_]?key|credential|auth)s?(?![a-z])/g;
-// A token next to one of these words is a count (max_tokens, tokenLimit)
+// A token key with any of these words in it is a count (max_output_tokens, tokenLimit)
 const COUNT_WORDS = /^(max|min|num|total|count|limit|per|budget|usage|length|size)$/;
 const MASK = '\u2022'.repeat(6);
 
@@ -166,6 +166,8 @@ const MASK = '\u2022'.repeat(6);
  * which masks everything under a secret key too.
  */
 function isSecretKey(key) {
+  // Quick way out for most keys: every term above has one of these in it
+  if (!/pass|pwd|secret|token|key|credential|auth/.test(String(key).toLowerCase().replaceAll('\0', ''))) return false;
   return String(key).split('.').some((seg) => {
     // a bare PWD is the shell's working directory
     if (seg.toLowerCase() === 'pwd') return false;

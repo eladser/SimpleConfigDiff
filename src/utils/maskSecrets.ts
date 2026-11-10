@@ -6,12 +6,14 @@ export const MASK = '••••••';
 // and tokens[0] match while author, authority, secretary and tokenizer don't.
 // bin/configdiff.js has a copy of this rule, keep the two in step.
 const SECRET_KEY = /(password|passwd|pwd|secret|token|api[-_]?key|private[-_]?key|credential|auth)s?(?![a-z])/g;
-// A token next to one of these words is a count (max_tokens, tokenLimit)
+// A token key with any of these words in it is a count (max_output_tokens, tokenLimit)
 const COUNT_WORDS = /^(max|min|num|total|count|limit|per|budget|usage|length|size)$/;
 
 // Takes a key or a dotted path. A path is secret when any key on it is,
 // which masks everything under a secret key too.
 export function isSecretKey(key: string): boolean {
+  // Quick way out for most keys: every term above has one of these in it
+  if (!/pass|pwd|secret|token|key|credential|auth/.test(key.toLowerCase().replaceAll('\0', ''))) return false;
   return key.split('.').some(seg => {
     // a bare PWD is the shell's working directory
     if (seg.toLowerCase() === 'pwd') return false;
@@ -61,9 +63,15 @@ export function maskResult(result: ComparisonResult): ComparisonResult {
   const keys = [...Object.keys(l.parsedContent ?? {}), ...Object.keys(r.parsedContent ?? {})];
   const under = (path: string, t: string) => path === t || path.startsWith(t + '.') || path.startsWith(t + '[');
   const top = keys.filter(isSecretKey).map(k => k.toLowerCase());
+  const cased = new Map<string, string>();
+  for (const k of keys) if (!cased.has(k.toLowerCase())) cased.set(k.toLowerCase(), k);
+  // Shortest key wins, so a dotted llm.maxTokens key beside llm stays masked
   const written = (path: string) => {
-    const k = keys.find(k => under(path, k.toLowerCase()));
-    return k ? k + path.slice(k.length) : path;
+    for (const m of path.matchAll(/[.[]|$/g)) {
+      const k = cased.get(path.slice(0, m.index));
+      if (k) return k + path.slice(m.index);
+    }
+    return path;
   };
   const mask = (v: any, path: string) =>
     v != null && top.some(t => under(path, t)) ? MASK : maskValue(v, written(path));
