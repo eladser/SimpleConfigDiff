@@ -67,3 +67,22 @@ test('html export escapes type, severity and category', () => {
   assert.ok(out.includes(`<tr class="${ESC}">`));
   assert.ok(out.includes(`<td>${ESC}</td><td><code>1</code></td><td><code>2</code></td><td class="${ESC}">${ESC}</td><td>${ESC}</td>`));
 });
+
+test('html export fills every token and keeps $ patterns literal', () => {
+  const res = diff('a$&b.json', { v: 'x' }, "c$'d.json", { v: "$&$'$$" });
+  const out = exportDiff(res, DEFAULTS, 'html');
+  const count = (s) => out.split(s).length - 1;
+  assert.ok(out.includes('<title>Configuration Diff Report</title>'), out);
+  assert.ok(out.includes('<h1>Configuration Diff Report</h1>'), out);
+  assert.ok(!out.includes('{{'), out);
+  const left = out.indexOf('<p>a$&amp;b.json</p>');
+  const right = out.indexOf('<p>c$&#39;d.json</p>');
+  const val = out.indexOf('<td><code>$&amp;$&#39;$$</code></td>');
+  assert.ok(left > 0 && right > left && val > right, out);
+  assert.ok(out.indexOf('class="summary-card"') > right && out.indexOf('class="summary-card"') < val, out);
+  assert.ok(out.indexOf('<h3>Detailed Statistics</h3>') > val, out);
+  for (const tag of ['<title>', '<h1>', 'class="summary-card"', '<table', '</table>', 'Detailed Statistics', '</html>']) {
+    assert.equal(count(tag), 1, tag);
+  }
+  assert.ok(out.trimEnd().endsWith('</html>'), out);
+});
