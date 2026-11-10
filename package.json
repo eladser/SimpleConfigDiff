@@ -4,7 +4,7 @@
   "description": "A browser-based tool that compares configuration files and outputs human-friendly structured diffs",
   "homepage": "https://eladser.github.io/SimpleConfigDiff/",
   "bin": {
-    "configdiff": "./bin/configdiff.js"
+    "configdiff": "bin/configdiff.js"
   },
   "scripts": {
     "dev": "vite",
@@ -40,7 +40,7 @@
   "bugs": "https://github.com/eladser/SimpleConfigDiff/issues",
   "funding": "https://ko-fi.com/eladser",
   "engines": {
-    "node": ">=18"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "dependencies": {
     "commander": "^15.0.0",
