@@ -349,25 +349,25 @@ export class DiffExporter {
     let html = template;
     
     // Replace template variables
-    html = html.replace('{{TITLE}}', `Configuration Diff Report`);
-    html = html.replace('{{LEFT_FILE}}', this.escapeHtml(this.result.leftFile.name));
-    html = html.replace('{{RIGHT_FILE}}', this.escapeHtml(this.result.rightFile.name));
-    html = html.replace('{{TIMESTAMP}}', new Date().toLocaleString());
+    html = html.replaceAll('{{TITLE}}', () => `Configuration Diff Report`);
+    html = html.replaceAll('{{LEFT_FILE}}', () => this.escapeHtml(this.result.leftFile.name));
+    html = html.replaceAll('{{RIGHT_FILE}}', () => this.escapeHtml(this.result.rightFile.name));
+    html = html.replaceAll('{{TIMESTAMP}}', () => new Date().toLocaleString());
     
     // Generate summary section
     const summarySection = this.generateSummarySection();
-    html = html.replace('{{SUMMARY_SECTION}}', summarySection);
+    html = html.replaceAll('{{SUMMARY_SECTION}}', () => summarySection);
     
     // Generate changes table
     const changesTable = this.generateChangesTable();
-    html = html.replace('{{CHANGES_TABLE}}', changesTable);
+    html = html.replaceAll('{{CHANGES_TABLE}}', () => changesTable);
     
     // Generate statistics
     if (exportOptions.includeStats) {
       const statsSection = this.generateStatsSection();
-      html = html.replace('{{STATS_SECTION}}', statsSection);
+      html = html.replaceAll('{{STATS_SECTION}}', () => statsSection);
     } else {
-      html = html.replace('{{STATS_SECTION}}', '');
+      html = html.replaceAll('{{STATS_SECTION}}', () => '');
     }
     
     return html;
