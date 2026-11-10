@@ -42,10 +42,15 @@ const colors = {
   bgBlue: '\x1b[44m'
 };
 
+// Set once options are parsed. Each stream only gets color when it's a terminal.
+let colorOut = false;
+let colorErr = false;
+
 /**
  * Colorize text for terminal output
  */
-function colorize(text, color) {
+function colorize(text, color, on = colorOut) {
+  if (!on) return text;
   return `${colors[color] || ''}${text}${colors.reset}`;
 }
 
@@ -155,6 +160,8 @@ function compareConfigs(left, right, path = '') {
  * Format output for different export formats
  */
 function formatOutput(changes, format, options) {
+  const on = colorOut && !options.outputFile;
+
   switch (format) {
     case 'json':
       return JSON.stringify(changes, null, 2);
@@ -180,7 +187,7 @@ function formatOutput(changes, format, options) {
       changes.forEach(change => {
         const typeColor = change.type === 'added' ? 'green' : 
                          change.type === 'removed' ? 'red' : 'yellow';
-        table += `${change.path.padEnd(maxPathLength)} | ${colorize(change.type.padEnd(maxTypeLength), typeColor)} | ${change.oldValue || ''} | ${change.newValue || ''}\n`;
+        table += `${change.path.padEnd(maxPathLength)} | ${colorize(change.type.padEnd(maxTypeLength), typeColor, on)} | ${change.oldValue || ''} | ${change.newValue || ''}\n`;
       });
       
       return table;
@@ -192,12 +199,12 @@ function formatOutput(changes, format, options) {
       }, {});
       
       return `
-${colorize('Configuration Diff Summary', 'bright')}
-${colorize('='.repeat(30), 'dim')}
-${colorize('Added:', 'green')} ${summary.added || 0}
-${colorize('Removed:', 'red')} ${summary.removed || 0}
-${colorize('Changed:', 'yellow')} ${summary.changed || 0}
-${colorize('Total:', 'bright')} ${changes.length}
+${colorize('Configuration Diff Summary', 'bright', on)}
+${colorize('='.repeat(30), 'dim', on)}
+${colorize('Added:', 'green', on)} ${summary.added || 0}
+${colorize('Removed:', 'red', on)} ${summary.removed || 0}
+${colorize('Changed:', 'yellow', on)} ${summary.changed || 0}
+${colorize('Total:', 'bright', on)} ${changes.length}
       `.trim();
     
     default:
@@ -250,7 +257,7 @@ function watchFiles(leftPath, rightPath, options) {
   const recompare = (filename) => {
     console.log(colorize(`File ${filename} changed, recomparing...`, 'yellow'));
     compareFiles(leftPath, rightPath, options).catch((error) => {
-      console.error(colorize(`Error: ${error.message}`, 'red'));
+      console.error(colorize(`Error: ${error.message}`, 'red', colorErr));
     });
   };
 
@@ -287,21 +294,26 @@ program
   .option('--ignore-case', 'Ignore case when comparing values')
   .option('--ignore-whitespace', 'Ignore whitespace differences')
   .action(async (leftFile, rightFile, options) => {
+    // https://no-color.org: any non-empty NO_COLOR turns color off
+    const color = options.color && !process.env.NO_COLOR;
+    colorOut = color && Boolean(process.stdout.isTTY);
+    colorErr = color && Boolean(process.stderr.isTTY);
+
     // Validate files exist
     if (!fs.existsSync(leftFile)) {
-      console.error(colorize(`Error: Left file '${leftFile}' does not exist`, 'red'));
+      console.error(colorize(`Error: Left file '${leftFile}' does not exist`, 'red', colorErr));
       process.exit(1);
     }
     
     if (!fs.existsSync(rightFile)) {
-      console.error(colorize(`Error: Right file '${rightFile}' does not exist`, 'red'));
+      console.error(colorize(`Error: Right file '${rightFile}' does not exist`, 'red', colorErr));
       process.exit(1);
     }
     
     // Validate output format
     const validOutputFormats = ['json', 'csv', 'table', 'summary'];
     if (!validOutputFormats.includes(options.output)) {
-      console.error(colorize(`Error: Invalid output format '${options.output}'. Valid formats: ${validOutputFormats.join(', ')}`, 'red'));
+      console.error(colorize(`Error: Invalid output format '${options.output}'. Valid formats: ${validOutputFormats.join(', ')}`, 'red', colorErr));
       process.exit(1);
     }
     
@@ -309,7 +321,7 @@ program
     try {
       if (options.watch) {
         await compareFiles(leftFile, rightFile, options).catch((error) => {
-          console.error(colorize(`Error: ${error.message}`, 'red'));
+          console.error(colorize(`Error: ${error.message}`, 'red', colorErr));
         });
         watchFiles(leftFile, rightFile, options);
       } else {
@@ -317,7 +329,7 @@ program
         process.exit(diffCount > 0 ? 1 : 0);
       }
     } catch (error) {
-      console.error(colorize(`Error: ${error.message}`, 'red'));
+      console.error(colorize(`Error: ${error.message}`, 'red', colorErr));
       process.exit(1);
     }
   });
