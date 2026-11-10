@@ -11,7 +11,7 @@ let detectFormat;
 before(async () => {
   server = await createServer({
     root: fileURLToPath(new URL('../..', import.meta.url)),
-    server: { middlewareMode: true, hmr: false },
+    server: { middlewareMode: true, hmr: false, ws: false },
     appType: 'custom',
     logLevel: 'error',
   });
@@ -80,5 +80,21 @@ for (const [name, content] of Object.entries(toml)) {
 for (const [name, content] of Object.entries(ini)) {
   test(`pasted ini: ${name}`, () => {
     assert.equal(detectFormat('', content), 'ini');
+  });
+}
+
+// detection reruns on every edit, so long crafted lines have to stay linear
+const crafted = {
+  'date then 50k spaces': 'a = 2024-01-01' + ' '.repeat(50000) + 'x\n[s]\nb = 1\n',
+  'unclosed header of 50k dots': '[s]\nb = 1\n[' + '.'.repeat(50000) + '\n',
+  'value of 50k spaces and a stray CR': '[s]\na =' + ' '.repeat(50000) + 'x\ry\n',
+};
+
+for (const [name, content] of Object.entries(crafted)) {
+  test(`fast on crafted input: ${name}`, () => {
+    const t = performance.now();
+    detectFormat('', content);
+    const ms = performance.now() - t;
+    assert.ok(ms < 50, `took ${ms.toFixed(0)} ms`);
   });
 }

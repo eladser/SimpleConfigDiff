@@ -171,12 +171,13 @@ function looksLikeTOML(content: string): boolean {
   let toml = false;
   for (const line of lines) {
     if (line.startsWith(';')) return false;
-    if (/^\[[^\]]*\.[^\]]*\]/.test(line)) toml = true;
+    if (/^\[[^\].]*\.[^\]]*\]/.test(line)) toml = true;
 
-    const m = line.match(/^[^#[{=]+=\s*(.*)$/);
+    const m = line.match(/^[^#[{=]+=(.*)$/);
     if (!m) continue;
-    const typed = /^["'[{]/.test(m[1]) ||
-      /^(true|false|[+-]?\d[\d_]*(\.\d+)?([eE][+-]?\d+)?|\d{4}-\d{2}-\d{2}[\dT:.Z+ -]*)\s*(#.*)?$/.test(m[1]);
+    const v = m[1].trim();
+    const typed = /^["'[{]/.test(v) ||
+      /^(true|false|[+-]?\d[\d_]*(\.\d+)?([eE][+-]?\d+)?|\d{4}-\d{2}-\d{2}([T ][\d:.Z+-]+)?)\s*(#.*)?$/.test(v);
     if (!typed) return false;
     toml = true;
   }
