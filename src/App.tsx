@@ -8,9 +8,11 @@ import { detectFormat, parseConfig } from '@/utils/parsers';
 import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
 import { downloadExcel } from '@/utils/exportExcel';
+import { maskResult } from '@/utils/maskSecrets';
 import { SAMPLE_LEFT, SAMPLE_RIGHT } from '@/sampleData';
 import {
   Download,
+  Eye,
   Layers,
   SplitSquareHorizontal,
   ChevronDown,
@@ -105,7 +107,16 @@ function App() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [dropTarget, setDropTarget] = useState<'left' | 'right' | null>(null);
+  // off on every load and never stored
+  const [showSecrets, setShowSecrets] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // views and exports read this, not comparisonResult
+  const shown = useMemo(
+    () => (comparisonResult && !showSecrets ? maskResult(comparisonResult) : comparisonResult),
+    [comparisonResult, showSecrets]
+  );
+  const masked = shown !== comparisonResult;
 
   const runCompare = useCallback(() => {
     if (!left.ready || !right.ready) {
@@ -219,7 +230,7 @@ function App() {
   }, []);
 
   const handleExport = useCallback(async (format: 'json' | 'csv' | 'html' | 'patch' | 'pdf' | 'xlsx') => {
-    if (!comparisonResult) return;
+    if (!shown) return;
 
     const exportOptions = {
       includeMetadata: true,
@@ -229,11 +240,11 @@ function App() {
 
     try {
       if (format === 'pdf') {
-        await downloadPDFDiff(comparisonResult, options, exportOptions);
+        await downloadPDFDiff(shown, options, exportOptions);
       } else if (format === 'xlsx') {
-        downloadExcel(comparisonResult, options, exportOptions);
+        downloadExcel(shown, options, exportOptions);
       } else {
-        downloadDiff(comparisonResult, options, format, exportOptions);
+        downloadDiff(shown, options, format, exportOptions);
       }
     } catch (error) {
       console.error(`${format} export failed:`, error);
@@ -241,21 +252,21 @@ function App() {
     }
 
     setShowExportMenu(false);
-  }, [comparisonResult, options]);
+  }, [shown, options]);
 
   const handleDiffModeChange = useCallback((mode: 'tree' | 'side-by-side' | 'unified') => {
     setOptions(prev => ({ ...prev, diffMode: mode }));
   }, []);
 
   const generateUnifiedDiff = useCallback(() => {
-    if (!comparisonResult) return 'No comparison result available';
+    if (!shown) return 'No comparison result available';
 
     const lines = [];
     lines.push(`--- ${left.pane.name || 'left'}`);
     lines.push(`+++ ${right.pane.name || 'right'}`);
     lines.push('');
 
-    comparisonResult.changes.forEach((change) => {
+    shown.changes.forEach((change) => {
       const path = change.path || '';
 
       if (change.type === 'added') {
@@ -273,7 +284,7 @@ function App() {
     }
 
     return lines.join('\n');
-  }, [comparisonResult, left.pane.name, right.pane.name]);
+  }, [shown, left.pane.name, right.pane.name]);
 
   const bothEmpty = !left.pane.content.trim() && !right.pane.content.trim();
 
@@ -329,6 +340,16 @@ function App() {
             >
               <Settings className="w-3.5 h-3.5" />
               Options
+            </button>
+
+            <button
+              onClick={() => setShowSecrets(!showSecrets)}
+              aria-pressed={showSecrets}
+              title="Values under keys like password, token or api_key show as dots until this is on"
+              className={`btn-secondary text-xs ${showSecrets ? 'border-accent/40 text-accent' : ''}`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Show secrets
             </button>
 
             <div className="relative">
@@ -416,7 +437,7 @@ function App() {
         )}
 
         {/* Results */}
-        {comparisonResult && (
+        {comparisonResult && shown && (
           <div ref={resultsRef} className="mb-10 animate-fade-in scroll-mt-16">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
@@ -452,7 +473,7 @@ function App() {
 
             <div className="animate-slide-up">
               {options.diffMode === 'side-by-side' ? (
-                <SideBySideDiff result={comparisonResult} onIgnoreKey={ignoreKey} />
+                <SideBySideDiff result={shown} masked={masked} onIgnoreKey={ignoreKey} />
               ) : options.diffMode === 'unified' ? (
                 <div className="bg-surface border border-border rounded-lg overflow-hidden">
                   <div className="px-4 py-2 border-b border-border text-xs text-faint font-mono">unified</div>
@@ -468,7 +489,7 @@ function App() {
                   <div className="p-4">
                     <Suspense fallback={<LoadingSkeleton />}>
                       <DiffViewer
-                        result={comparisonResult}
+                        result={shown}
                         options={options}
                       />
                     </Suspense>

@@ -227,3 +227,101 @@ test('a malformed .configdiffrc.json is a one-line error', () => {
 test('--help lists --ignore', () => {
   assert.match(run(['--help']).stdout, /--ignore <pattern>/);
 });
+
+const MASK = '\u2022'.repeat(6);
+
+// secret values all carry S3CR3T so one includes() check covers a whole output
+const secretPair = () => pair('secrets',
+  { db: { host: 'a', password: 'S3CR3T-1' }, author: 'alice', AUTH_TOKEN: 'S3CR3T-2', clientSecret: 'S3CR3T-3',
+    secretKey: 'S3CR3T-7', passwordHash: 'S3CR3T-8' },
+  { db: { host: 'b', password: 'S3CR3T-4' }, author: 'bob', AUTH_TOKEN: 'S3CR3T-5', clientSecret: 'S3CR3T-6',
+    secretKey: 'S3CR3T-9', passwordHash: 'S3CR3T-10' });
+
+test('secret values are masked in every output format', () => {
+  const [l, r] = secretPair();
+  const out = join(dir, 'secrets.out');
+  for (const o of ['table', 'csv', 'json']) {
+    const res = run([l, r, '-o', o]);
+    assert.ok(!res.stdout.includes('S3CR3T'), `${o} shows a secret`);
+    assert.ok(res.stdout.includes(MASK), o);
+    assert.ok(res.stdout.includes('alice') && res.stdout.includes('bob'), `${o} masks author`);
+    run([l, r, '-o', o, '--output-file', out]);
+    assert.ok(!readFileSync(out, 'utf8').includes('S3CR3T'), `${o} file shows a secret`);
+  }
+});
+
+test('a masked secret still counts as changed', () => {
+  const [l, r] = secretPair();
+  const res = run([l, r, '-o', 'json']);
+  assert.equal(res.status, 1);
+  assert.deepEqual(JSON.parse(res.stdout), [
+    { path: 'db.host', type: 'changed', oldValue: 'a', newValue: 'b' },
+    { path: 'db.password', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'author', type: 'changed', oldValue: 'alice', newValue: 'bob' },
+    { path: 'AUTH_TOKEN', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'clientSecret', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'secretKey', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'passwordHash', type: 'changed', oldValue: MASK, newValue: MASK },
+  ]);
+  assert.match(run([l, r, '-o', 'summary']).stdout, /Changed: 7\s+Total: 7/);
+
+  const [same1, same2] = pair('samesecret', { password: 'S3CR3T' }, { password: 'S3CR3T' });
+  assert.equal(run([same1, same2]).status, 0);
+});
+
+test('--show-secrets prints the real values', () => {
+  const [l, r] = secretPair();
+  for (const o of ['table', 'csv', 'json']) {
+    const res = run([l, r, '-o', o, '--show-secrets']);
+    assert.ok(res.stdout.includes('S3CR3T-1') && res.stdout.includes('S3CR3T-6'), o);
+    assert.ok(!res.stdout.includes(MASK), o);
+  }
+});
+
+test('everything under a secret key masks, and secret keys inside added objects', () => {
+  const [l, r] = pair('nested',
+    { auth: { user: 'u', pass: 'S3CR3T-1' }, tokens: ['S3CR3T-2'], servers: [{ host: 'a' }] },
+    { auth: { user: 'u', pass: 'S3CR3T-3' }, tokens: ['S3CR3T-4'], servers: [{ host: 'a' }, { host: 'b', apiKey: 'S3CR3T-5' }],
+      db: { host: 'h', password: 'S3CR3T-6' } });
+  assert.deepEqual(JSON.parse(run([l, r, '-o', 'json']).stdout), [
+    { path: 'auth.pass', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'tokens.0', type: 'changed', oldValue: MASK, newValue: MASK },
+    { path: 'servers.1', type: 'added', newValue: { host: 'b', apiKey: MASK } },
+    { path: 'db', type: 'added', newValue: { host: 'h', password: MASK } },
+  ]);
+
+  const [l2, r2] = pair('replicas', { app: 'x' }, { app: 'x', extra: { replicas: [{ host: 'h', password: 'S3CR3T-7' }] } });
+  assert.deepEqual(JSON.parse(run([l2, r2, '-o', 'json']).stdout), [
+    { path: 'extra', type: 'added', newValue: { replicas: [{ host: 'h', password: MASK }] } },
+  ]);
+});
+
+test('values with nothing secret under them print as before, dates included', () => {
+  const l = join(dir, 'date-l.yaml');
+  const r = join(dir, 'date-r.yaml');
+  writeFileSync(l, 'name: app\n');
+  writeFileSync(r, 'name: app\nreleased: 2024-01-01\nbuild:\n  at: 2024-02-02\n');
+  assert.deepEqual(JSON.parse(run([l, r, '-o', 'json']).stdout), [
+    { path: 'released', type: 'added', newValue: '2024-01-01T00:00:00.000Z' },
+    { path: 'build', type: 'added', newValue: { at: '2024-02-02T00:00:00.000Z' } },
+  ]);
+});
+
+test('masking works with --ignore and control character escapes', () => {
+  const [l, r] = pair('mixed',
+    { password: '\u001b[2J', token: 'S3CR3T-1', host: 'a' },
+    { password: '\u001b]52;c;aGk=\u0007', token: 'S3CR3T-2', host: 'b' });
+  const res = run([l, r, '--ignore', 'token']);
+  assert.ok(!res.stdout.includes('token'));
+  assert.ok(res.stdout.includes(`| ${MASK} | ${MASK}`));
+  assert.ok(!res.stdout.includes(esc));
+  assert.ok(!res.stdout.includes('\\x1b'));
+
+  const shown = run([l, r, '--ignore', 'token', '--show-secrets']).stdout;
+  assert.ok(shown.includes('\\x1b[2J'));
+  assert.ok(!shown.includes(esc));
+});
+
+test('--help lists --show-secrets', () => {
+  assert.match(run(['--help']).stdout, /--show-secrets/);
+});

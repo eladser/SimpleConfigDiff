@@ -1,9 +1,12 @@
 ﻿import { useState, useMemo, useCallback } from 'react';
 import { ComparisonResult } from '../types';
+import { MASK } from '../utils/maskSecrets';
 import { Search, X, ChevronRight, ChevronDown, Copy, Check, EyeOff } from 'lucide-react';
 
 interface SideBySideDiffProps {
   result: ComparisonResult;
+  // secrets are hidden and the raw file text was dropped with them
+  masked?: boolean;
   onIgnoreKey?: (path: string) => void;
 }
 
@@ -85,7 +88,7 @@ const TYPE_BORDER: Record<string, string> = {
   unchanged: 'border-l-transparent'
 };
 
-export function SideBySideDiff({ result, onIgnoreKey }: SideBySideDiffProps) {
+export function SideBySideDiff({ result, masked, onIgnoreKey }: SideBySideDiffProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'added' | 'removed' | 'changed'>('all');
   const [viewMode, setViewMode] = useState<'grouped' | 'flat' | 'raw'>('grouped');
@@ -287,7 +290,8 @@ export function SideBySideDiff({ result, onIgnoreKey }: SideBySideDiffProps) {
       return <span className="text-faint">{missing ? '—' : '(empty)'}</span>;
     }
 
-    if (item.type === 'changed' && !searchTerm && own && other && charDiffable(own, other)) {
+    // a masked pair is the same dots on both sides, so color the whole value instead
+    if (item.type === 'changed' && !searchTerm && own && other && own !== MASK && other !== MASK && charDiffable(own, other)) {
       const { p, s } = charBounds(item.leftContent, item.rightContent);
       const mid = own.slice(p, own.length - s);
       const markClass = side === 'left'
@@ -433,7 +437,13 @@ export function SideBySideDiff({ result, onIgnoreKey }: SideBySideDiffProps) {
       </div>
 
       {/* Diff content */}
-      {visibleCount === 0 ? (
+      {masked && viewMode === 'raw' && !isDifferentFormats ? (
+        <div className="text-center py-14">
+          <p className="font-mono text-sm text-muted">
+            Raw shows the files as typed, secrets and all. Turn on Show secrets to see it.
+          </p>
+        </div>
+      ) : visibleCount === 0 ? (
         <div className="text-center py-14">
           <p className="font-mono text-sm text-muted">
             {hasActiveFilters ? 'Nothing matches the current filters' : 'No differences'}

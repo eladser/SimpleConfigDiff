@@ -153,6 +153,51 @@ function globToRegExp(pattern) {
   return new RegExp(`^${re}$`);
 }
 
+// Same rule as isSecretKey in src/utils/maskSecrets.ts, keep the two in step.
+// A term counts when it ends a word, so dbPassword, AUTH_TOKEN and tokens.0
+// match while author, authority, secretary and tokenizer don't.
+const SECRET_KEY = /(password|passwd|pwd|secret|token|api[-_]?key|private[-_]?key|credential|auth)s?(?![a-z])/;
+const MASK = '\u2022'.repeat(6);
+
+/**
+ * Takes a key or a dotted path. A path is secret when any key on it is,
+ * which masks everything under a secret key too.
+ */
+function isSecretKey(key) {
+  const k = String(key)
+    .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
+    .toLowerCase();
+  return SECRET_KEY.test(k);
+}
+
+/**
+ * Only arrays and plain objects get walked, null-prototype ones too (INI
+ * sections, TOML tables). Dates and other class values pass through.
+ */
+function walkable(v) {
+  if (v === null || typeof v !== 'object') return false;
+  const p = Object.getPrototypeOf(v);
+  return Array.isArray(v) || p === Object.prototype || p === null;
+}
+
+function hasSecrets(value) {
+  return walkable(value) && Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v));
+}
+
+/**
+ * Swap values under secret keys for dots, nested ones included. Missing and
+ * null values stay as they are, and a value with nothing secret under it
+ * comes back as the same value.
+ */
+function maskValue(value, key) {
+  if (value === null || value === undefined) return value;
+  if (isSecretKey(key)) return MASK;
+  if (!hasSecrets(value)) return value;
+  if (Array.isArray(value)) return value.map((v) => maskValue(v, ''));
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, maskValue(v, k)]));
+}
+
 const RC_FILE = '.configdiffrc.json';
 
 /**
@@ -302,8 +347,13 @@ async function compareFiles(leftPath, rightPath, options) {
   // Compare
   const changes = compareConfigs(leftConfig, rightConfig, '', options);
 
-  // Output results
-  const output = formatOutput(changes, options.output, options);
+  // Output results. Masking is display only, the comparison above saw the real values.
+  const shown = options.showSecrets ? changes : changes.map((c) => ({
+    ...c,
+    oldValue: maskValue(c.oldValue, c.path),
+    newValue: maskValue(c.newValue, c.path)
+  }));
+  const output = formatOutput(shown, options.output, options);
 
   if (options.outputFile) {
     fs.writeFileSync(options.outputFile, output);
@@ -361,6 +411,7 @@ program
   .option('--ignore-case', 'Ignore case when comparing values')
   .option('--ignore-whitespace', 'Ignore whitespace differences')
   .option('--ignore <pattern>', 'Ignore a path or glob like build.* or **.password (repeatable)', (p, prev = []) => [...prev, p])
+  .option('--show-secrets', 'Print values under keys like password, token or api_key instead of masking them')
   .action(async (leftFile, rightFile, options) => {
     // https://no-color.org: any non-empty NO_COLOR turns color off
     const color = options.color && !process.env.NO_COLOR;
