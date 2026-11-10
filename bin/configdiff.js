@@ -156,7 +156,9 @@ function globToRegExp(pattern) {
 // Same rule as isSecretKey in src/utils/maskSecrets.ts, keep the two in step.
 // A term counts when it ends a word, so dbPassword, AUTH_TOKEN and tokens.0
 // match while author, authority, secretary and tokenizer don't.
-const SECRET_KEY = /(password|passwd|pwd|secret|token|api[-_]?key|private[-_]?key|credential|auth)s?(?![a-z])/;
+const SECRET_KEY = /(password|passwd|pwd|secret|token|api[-_]?key|private[-_]?key|credential|auth)s?(?![a-z])/g;
+// A token next to one of these words is a count (max_tokens, tokenLimit)
+const COUNT_WORDS = /^(max|min|num|total|count|limit|per|budget|usage|length|size)$/;
 const MASK = '\u2022'.repeat(6);
 
 /**
@@ -164,11 +166,20 @@ const MASK = '\u2022'.repeat(6);
  * which masks everything under a secret key too.
  */
 function isSecretKey(key) {
-  const k = String(key)
-    .replace(/([a-z\d])([A-Z])/g, '$1_$2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
-    .toLowerCase();
-  return SECRET_KEY.test(k);
+  return String(key).split('.').some((seg) => {
+    // a bare PWD is the shell's working directory
+    if (seg.toLowerCase() === 'pwd') return false;
+    const low = seg
+      .replace(/([a-z\d])([A-Z])/g, '$1\0$2')
+      .replace(/([A-Z])([A-Z][a-z])/g, '$1\0$2')
+      .toLowerCase();
+    const counted = low.split(/[^a-z\d]+/).some((w) => COUNT_WORDS.test(w));
+    // Test the key up to each camelCase break with the breaks taken out, so a
+    // term can run across one (PassWord) but still has to end a word
+    const words = low.split('\0');
+    return words.some((_, i) =>
+      [...words.slice(0, i + 1).join('').matchAll(SECRET_KEY)].some((m) => m[1] !== 'token' || !counted));
+  });
 }
 
 /**
