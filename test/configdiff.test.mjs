@@ -170,6 +170,12 @@ test('--ignore ** crosses segments, and like the web app **.x skips a top-level 
   assert.deepEqual(ignore(l, r, '**'), []);
 });
 
+test('--ignore treats regex characters in a pattern literally', () => {
+  const [l, r] = pair('literal', { a: { b: 1 }, axb: 1, 'c++': 1 }, { a: { b: 2 }, axb: 2, 'c++': 2 });
+  assert.deepEqual(ignore(l, r, 'a.b'), ['axb', 'c++']);
+  assert.deepEqual(ignore(l, r, 'c++'), ['a.b', 'axb']);
+});
+
 test('ignored paths stay out of every output format', () => {
   const [l, r] = pair('formats', { version: 1, host: 'a' }, { version: 2, host: 'b' });
   const out = join(dir, 'formats.out');
@@ -194,6 +200,9 @@ test('exit code is 0 when only ignored paths differ, from flags or .configdiffrc
   writeFileSync(join(cwd, '.configdiffrc.json'), JSON.stringify({ ignore: ['version', 'build.*'] }));
   assert.equal(run([l, r], { cwd }).status, 0);
   assert.equal(run([l, r]).status, 1);
+
+  writeFileSync(join(cwd, '.configdiffrc.json'), '\ufeff' + JSON.stringify({ ignore: ['version', 'build.*'] }));
+  assert.equal(run([l, r], { cwd }).status, 0);
 
   // the rc file and flags add up
   writeFileSync(join(cwd, '.configdiffrc.json'), JSON.stringify({ ignore: ['version'] }));

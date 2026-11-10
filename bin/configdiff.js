@@ -139,7 +139,7 @@ function fold(value, options) {
 /**
  * Turn an --ignore pattern into a regex with the same rules as the web app's
  * glob path rules (PathMatcher.globMatch in src/utils/advancedComparison.ts):
- * * stays inside one segment, ** crosses segments, ? is one character.
+ * * stays inside one segment, ** crosses segments, ? is one non-dot character.
  * Array items are segments too, so tags.0 or servers.*.host.
  */
 function globToRegExp(pattern) {
@@ -164,7 +164,8 @@ function readRc() {
 
   let rc;
   try {
-    rc = JSON.parse(fs.readFileSync(file, 'utf8'));
+    // PowerShell 5.1 writes UTF-8 with a BOM
+    rc = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
   } catch (error) {
     throw new Error(`Can't read ${RC_FILE}: ${printable(error.message)}`);
   }

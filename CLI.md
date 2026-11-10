@@ -32,7 +32,6 @@ configdiff <left-file> <right-file>
 - `--no-color` - Disable colored output
 - `--ignore-case` - Ignore case when comparing values
 - `--ignore-whitespace` - Ignore whitespace differences
-- `--ignore <pattern>` - Ignore a path or glob, can be repeated (see below)
 
 ### Examples
 
@@ -197,17 +196,6 @@ configdiff config1.json config2.json --ignore-case
 
 # Ignore whitespace differences
 configdiff config1.yml config2.yml --ignore-whitespace
-
-# Leave out keys that are meant to differ
-configdiff config1.json config2.json --ignore version --ignore 'build.*'
-```
-
-`--ignore` uses the same globs as the web app's path rules: `*` stays inside one segment, `**` crosses segments, anything else is an exact path. Array items are segments too (`servers.*.host`). Ignoring a key also drops everything under it, and ignored paths don't count toward the exit code.
-
-To keep the list with the project, put a `.configdiffrc.json` in the directory you run from. Its patterns are added to any `--ignore` flags:
-
-```json
-{ "ignore": ["version", "build.*", "**.password"] }
 ```
 
 ### Format Detection
