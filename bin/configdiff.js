@@ -55,6 +55,19 @@ function colorize(text, color, on = colorOut) {
 }
 
 /**
+ * Show control characters (C0, DEL, C1) as escapes. Keys, values and parser
+ * messages come from files that may not be ours, and raw ESC bytes would
+ * drive the terminal. Newlines stay real only for multi-line parser errors.
+ */
+function printable(text, keepNewlines = false) {
+  return String(text).replace(/[\x00-\x1f\x7f-\x9f]/g, (c) => {
+    if (c === '\n') return keepNewlines ? c : '\\n';
+    if (c === '\t') return '\\t';
+    return '\\x' + c.charCodeAt(0).toString(16).padStart(2, '0');
+  });
+}
+
+/**
  * Detect file format based on extension
  */
 function detectFormat(filename) {
@@ -167,7 +180,7 @@ function formatOutput(changes, format, options) {
       return JSON.stringify(changes, null, 2);
     
     case 'csv': {
-      const cell = (v) => `"${String(v != null ? v : '').replace(/"/g, '""')}"`;
+      const cell = (v) => `"${printable(v != null ? v : '').replace(/"/g, '""')}"`;
       const csvHeader = 'Path,Type,Old Value,New Value\n';
       const csvRows = changes.map(change =>
         [cell(change.path), cell(change.type), cell(change.oldValue), cell(change.newValue)].join(',')
@@ -177,7 +190,7 @@ function formatOutput(changes, format, options) {
     
     case 'table':
       // Simple table format for terminal
-      const maxPathLength = Math.max(...changes.map(c => c.path.length), 4);
+      const maxPathLength = Math.max(...changes.map(c => printable(c.path).length), 4);
       const maxTypeLength = Math.max(...changes.map(c => c.type.length), 4);
       
       let table = '';
@@ -187,7 +200,7 @@ function formatOutput(changes, format, options) {
       changes.forEach(change => {
         const typeColor = change.type === 'added' ? 'green' : 
                          change.type === 'removed' ? 'red' : 'yellow';
-        table += `${change.path.padEnd(maxPathLength)} | ${colorize(change.type.padEnd(maxTypeLength), typeColor, on)} | ${change.oldValue || ''} | ${change.newValue || ''}\n`;
+        table += `${printable(change.path).padEnd(maxPathLength)} | ${colorize(change.type.padEnd(maxTypeLength), typeColor, on)} | ${printable(change.oldValue || '')} | ${printable(change.newValue || '')}\n`;
       });
       
       return table;
@@ -240,7 +253,7 @@ async function compareFiles(leftPath, rightPath, options) {
 
   if (options.outputFile) {
     fs.writeFileSync(options.outputFile, output);
-    console.log(colorize(`Results written to ${options.outputFile}`, 'green'));
+    console.log(colorize(`Results written to ${printable(options.outputFile)}`, 'green'));
   } else {
     console.log(output);
   }
@@ -252,12 +265,12 @@ async function compareFiles(leftPath, rightPath, options) {
  * Watch files for changes
  */
 function watchFiles(leftPath, rightPath, options) {
-  console.log(colorize(`Watching ${leftPath} and ${rightPath} for changes...`, 'cyan'));
+  console.log(colorize(`Watching ${printable(leftPath)} and ${printable(rightPath)} for changes...`, 'cyan'));
 
   const recompare = (filename) => {
-    console.log(colorize(`File ${filename} changed, recomparing...`, 'yellow'));
+    console.log(colorize(`File ${printable(filename)} changed, recomparing...`, 'yellow'));
     compareFiles(leftPath, rightPath, options).catch((error) => {
-      console.error(colorize(`Error: ${error.message}`, 'red', colorErr));
+      console.error(colorize(`Error: ${printable(error.message, true)}`, 'red', colorErr));
     });
   };
 
@@ -301,19 +314,19 @@ program
 
     // Validate files exist
     if (!fs.existsSync(leftFile)) {
-      console.error(colorize(`Error: Left file '${leftFile}' does not exist`, 'red', colorErr));
+      console.error(colorize(`Error: Left file '${printable(leftFile)}' does not exist`, 'red', colorErr));
       process.exit(1);
     }
     
     if (!fs.existsSync(rightFile)) {
-      console.error(colorize(`Error: Right file '${rightFile}' does not exist`, 'red', colorErr));
+      console.error(colorize(`Error: Right file '${printable(rightFile)}' does not exist`, 'red', colorErr));
       process.exit(1);
     }
     
     // Validate output format
     const validOutputFormats = ['json', 'csv', 'table', 'summary'];
     if (!validOutputFormats.includes(options.output)) {
-      console.error(colorize(`Error: Invalid output format '${options.output}'. Valid formats: ${validOutputFormats.join(', ')}`, 'red', colorErr));
+      console.error(colorize(`Error: Invalid output format '${printable(options.output)}'. Valid formats: ${validOutputFormats.join(', ')}`, 'red', colorErr));
       process.exit(1);
     }
     
@@ -321,7 +334,7 @@ program
     try {
       if (options.watch) {
         await compareFiles(leftFile, rightFile, options).catch((error) => {
-          console.error(colorize(`Error: ${error.message}`, 'red', colorErr));
+          console.error(colorize(`Error: ${printable(error.message, true)}`, 'red', colorErr));
         });
         watchFiles(leftFile, rightFile, options);
       } else {
@@ -329,7 +342,7 @@ program
         process.exit(diffCount > 0 ? 1 : 0);
       }
     } catch (error) {
-      console.error(colorize(`Error: ${error.message}`, 'red', colorErr));
+      console.error(colorize(`Error: ${printable(error.message, true)}`, 'red', colorErr));
       process.exit(1);
     }
   });
