@@ -102,3 +102,42 @@ test('csv cells and parse errors escape control characters too', () => {
   assert.ok(r.stderr.includes('\\x1b[2J'));
   assert.ok(!r.stderr.includes(esc));
 });
+
+function pair(name, left, right) {
+  const l = join(dir, `${name}-l.json`);
+  const r = join(dir, `${name}-r.json`);
+  writeFileSync(l, JSON.stringify(left));
+  writeFileSync(r, JSON.stringify(right));
+  return [l, r];
+}
+
+const paths = (r) => JSON.parse(r.stdout).map((c) => c.path);
+
+test('--ignore-case drops values that differ only by case', () => {
+  const [l, r] = pair('case', { level: 'Debug', n: 'A' }, { level: 'debug', n: 'B' });
+  assert.deepEqual(paths(run([l, r, '-o', 'json'])), ['level', 'n']);
+  assert.deepEqual(paths(run([l, r, '-o', 'json', '--ignore-case'])), ['n']);
+});
+
+test('--ignore-whitespace trims and collapses runs, but a space still counts', () => {
+  const [l, r] = pair('ws', { a: 'a b', b: 'x\ty', c: 'ab' }, { a: ' a  b ', b: 'x y', c: 'a b' });
+  assert.deepEqual(paths(run([l, r, '-o', 'json'])), ['a', 'b', 'c']);
+  assert.deepEqual(paths(run([l, r, '-o', 'json', '--ignore-whitespace'])), ['c']);
+});
+
+test('exit code is 0 once only ignored differences are left', () => {
+  const [l, r] = pair('exit', { level: 'Debug', name: 'a b' }, { level: 'debug', name: ' a  b ' });
+  assert.equal(run([l, r]).status, 1);
+  assert.equal(run([l, r, '--ignore-case']).status, 1);
+  assert.equal(run([l, r, '--ignore-whitespace']).status, 1);
+  assert.equal(run([l, r, '--ignore-case', '--ignore-whitespace']).status, 0);
+});
+
+test('ignore flags fold nested strings, not numbers, booleans or keys', () => {
+  const [l, r] = pair('deep',
+    { db: { host: 'DB.local ' }, tags: ['A'], port: 1, on: true, Key: 'x' },
+    { db: { host: 'db.local' }, tags: ['a'], port: '1', on: 'TRUE', key: 'x' });
+  const res = run([l, r, '-o', 'json', '--ignore-case', '--ignore-whitespace']);
+  assert.deepEqual(paths(res), ['port', 'on', 'Key', 'key']);
+  assert.equal(res.status, 1);
+});

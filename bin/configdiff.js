@@ -125,9 +125,21 @@ function parseConfig(content, format) {
 }
 
 /**
+ * Fold strings for --ignore-case and --ignore-whitespace the way the web app's
+ * case and whitespace options do. Other types compare as they are.
+ */
+function fold(value, options) {
+  if (typeof value !== 'string') return value;
+  let v = value;
+  if (options.ignoreWhitespace) v = v.trim().replace(/\s+/g, ' ');
+  if (options.ignoreCase) v = v.toLowerCase();
+  return v;
+}
+
+/**
  * Compare two configuration objects
  */
-function compareConfigs(left, right, path = '') {
+function compareConfigs(left, right, path = '', options = {}) {
   const changes = [];
   
   // Get all unique keys
@@ -155,8 +167,8 @@ function compareConfigs(left, right, path = '') {
     } else if (typeof leftValue === 'object' && typeof rightValue === 'object' && 
                leftValue !== null && rightValue !== null) {
       // Recursively compare objects
-      changes.push(...compareConfigs(leftValue, rightValue, currentPath));
-    } else if (leftValue !== rightValue) {
+      changes.push(...compareConfigs(leftValue, rightValue, currentPath, options));
+    } else if (fold(leftValue, options) !== fold(rightValue, options)) {
       changes.push({
         path: currentPath,
         type: 'changed',
@@ -246,7 +258,7 @@ async function compareFiles(leftPath, rightPath, options) {
   const rightConfig = parseConfig(rightContent, rightFormat);
 
   // Compare
-  const changes = compareConfigs(leftConfig, rightConfig);
+  const changes = compareConfigs(leftConfig, rightConfig, '', options);
 
   // Output results
   const output = formatOutput(changes, options.output, options);
