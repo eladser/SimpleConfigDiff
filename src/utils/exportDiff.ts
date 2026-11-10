@@ -350,8 +350,8 @@ export class DiffExporter {
     
     // Replace template variables
     html = html.replace('{{TITLE}}', `Configuration Diff Report`);
-    html = html.replace('{{LEFT_FILE}}', this.result.leftFile.name);
-    html = html.replace('{{RIGHT_FILE}}', this.result.rightFile.name);
+    html = html.replace('{{LEFT_FILE}}', this.escapeHtml(this.result.leftFile.name));
+    html = html.replace('{{RIGHT_FILE}}', this.escapeHtml(this.result.rightFile.name));
     html = html.replace('{{TIMESTAMP}}', new Date().toLocaleString());
     
     // Generate summary section
@@ -493,16 +493,16 @@ export class DiffExporter {
     table += '<tbody>';
     
     for (const change of this.result.changes) {
-      const severityClass = change.severity || 'minor';
-      const typeClass = change.type;
+      const severityClass = this.escapeHtml(change.severity || 'minor');
+      const typeClass = this.escapeHtml(change.type);
       
       table += `<tr class="${typeClass}">`;
-      table += `<td><code>${change.path}</code></td>`;
-      table += `<td>${change.type}</td>`;
+      table += `<td><code>${this.escapeHtml(change.path)}</code></td>`;
+      table += `<td>${this.escapeHtml(change.type)}</td>`;
       table += `<td>${this.formatValueForHTML(change.oldValue)}</td>`;
       table += `<td>${this.formatValueForHTML(change.newValue)}</td>`;
-      table += `<td class="${severityClass}">${change.severity || 'N/A'}</td>`;
-      table += `<td>${change.category || 'N/A'}</td>`;
+      table += `<td class="${severityClass}">${this.escapeHtml(change.severity || 'N/A')}</td>`;
+      table += `<td>${this.escapeHtml(change.category || 'N/A')}</td>`;
       table += '</tr>';
     }
     
@@ -528,9 +528,18 @@ export class DiffExporter {
   private formatValueForHTML(value: any): string {
     if (value === null || value === undefined) return '<em>N/A</em>';
     if (typeof value === 'object') {
-      return `<code>${JSON.stringify(value, null, 2)}</code>`;
+      return `<code>${this.escapeHtml(JSON.stringify(value, null, 2))}</code>`;
     }
-    return `<code>${String(value)}</code>`;
+    return `<code>${this.escapeHtml(String(value))}</code>`;
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 }
 

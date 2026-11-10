@@ -13,6 +13,7 @@
 
 ### Security
 - CLI parse errors give the file, format, line and column, and no longer quote the lines around the error, which could hold secrets. `--show-secrets` prints the parser's full message.
+- The HTML and PDF exports escape paths, values and file names, so a config holding markup like `<script>` shows it as text instead of running it when you open the export.
 
 ## 2.1.0 - 2026-11-10
 
