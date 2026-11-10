@@ -35,6 +35,11 @@ export class SemanticComparator {
       return true;
     }
 
+    // A Date has no keys, so the object check below would call any two equal
+    if (left instanceof Date || right instanceof Date) {
+      return left instanceof Date && right instanceof Date && left.getTime() === right.getTime();
+    }
+
     // Handle array equivalence
     if (Array.isArray(left) && Array.isArray(right)) {
       return this.arraySemanticEquals(left, right);
