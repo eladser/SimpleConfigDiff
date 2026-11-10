@@ -38,8 +38,25 @@ function walkable(v: any): boolean {
   return Array.isArray(v) || p === Object.prototype || p === null;
 }
 
+// Keys of a walkable value that hold secrets whatever they're called: data and
+// stringData in a Kubernetes Secret, and value in .NET's <add key="DbPassword"
+// value="..."/>. bin/configdiff.js has a copy, keep the two in step.
+function hidden(v: any): string[] {
+  if (v.kind === 'Secret') return ['data', 'stringData'];
+  if (typeof v['@_key'] === 'string' && isSecretKey(v['@_key'])) return ['@_value'];
+  return [];
+}
+
+// Dotted paths of the hidden keys anywhere in a parsed config
+function hiddenPaths(value: any, path = ''): string[] {
+  if (!walkable(value)) return [];
+  const at = (k: string) => (path ? `${path}.${k}` : k);
+  return [...hidden(value).map(at), ...Object.entries(value).flatMap(([k, v]) => hiddenPaths(v, at(k)))];
+}
+
 export const hasSecrets = (value: any): boolean =>
-  walkable(value) && Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v));
+  walkable(value) && (hidden(value).some(k => k in value) ||
+    Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v)));
 
 // Hands back the same value when nothing under it is secret
 export function maskValue(value: any, key: string): any {
@@ -47,7 +64,8 @@ export function maskValue(value: any, key: string): any {
   if (isSecretKey(key)) return MASK;
   if (!hasSecrets(value)) return value;
   if (Array.isArray(value)) return value.map(v => maskValue(v, ''));
-  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, maskValue(v, k)]));
+  const h = hidden(value);
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, h.includes(k) && v != null ? MASK : maskValue(v, k)]));
 }
 
 // Display copy of a result. The diff already ran on the real values, so change
@@ -73,8 +91,12 @@ export function maskResult(result: ComparisonResult): ComparisonResult {
     }
     return path;
   };
-  const mask = (v: any, path: string) =>
-    v != null && top.some(t => under(path, t)) ? MASK : maskValue(v, written(path));
+  // Each side goes by its own document, like the files below
+  const hidL = hiddenPaths(l.parsedContent);
+  const hidR = hiddenPaths(r.parsedContent);
+  const mask = (v: any, path: string, hid: string[]) =>
+    v != null && (top.some(t => under(path, t)) || hid.some(t => under(written(path), t)))
+      ? MASK : maskValue(v, written(path));
 
   // Raw text can't be masked reliably, so it's dropped. That empties the raw
   // view and the patch context lines until secrets are shown.
@@ -82,7 +104,7 @@ export function maskResult(result: ComparisonResult): ComparisonResult {
 
   return {
     ...result,
-    changes: result.changes.map(c => ({ ...c, oldValue: mask(c.oldValue, c.path), newValue: mask(c.newValue, c.path) })),
+    changes: result.changes.map(c => ({ ...c, oldValue: mask(c.oldValue, c.path, hidL), newValue: mask(c.newValue, c.path, hidR) })),
     leftFile: file(l),
     rightFile: file(r),
     unifiedDiff: undefined

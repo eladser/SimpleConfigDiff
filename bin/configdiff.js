@@ -233,8 +233,29 @@ function walkable(v) {
   return Array.isArray(v) || p === Object.prototype || p === null;
 }
 
+/**
+ * Keys of a walkable value that hold secrets whatever they're called: data and
+ * stringData in a Kubernetes Secret, and value in .NET's <add key="DbPassword"
+ * value="..."/>. Same rule as hidden() in src/utils/maskSecrets.ts.
+ */
+function hidden(v) {
+  if (v.kind === 'Secret') return ['data', 'stringData'];
+  if (typeof v['@_key'] === 'string' && isSecretKey(v['@_key'])) return ['@_value'];
+  return [];
+}
+
+/**
+ * Dotted paths of the hidden keys anywhere in a parsed config
+ */
+function hiddenPaths(value, path = '') {
+  if (!walkable(value)) return [];
+  const at = (k) => (path ? `${path}.${k}` : k);
+  return [...hidden(value).map(at), ...Object.entries(value).flatMap(([k, v]) => hiddenPaths(v, at(k)))];
+}
+
 function hasSecrets(value) {
-  return walkable(value) && Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v));
+  return walkable(value) && (hidden(value).some((k) => k in value) ||
+    Object.entries(value).some(([k, v]) => isSecretKey(k) || hasSecrets(v)));
 }
 
 /**
@@ -247,7 +268,8 @@ function maskValue(value, key) {
   if (isSecretKey(key)) return MASK;
   if (!hasSecrets(value)) return value;
   if (Array.isArray(value)) return value.map((v) => maskValue(v, ''));
-  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, maskValue(v, k)]));
+  const h = hidden(value);
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, h.includes(k) && v != null ? MASK : maskValue(v, k)]));
 }
 
 const RC_FILE = '.configdiffrc.json';
@@ -401,10 +423,14 @@ async function compareFiles(leftPath, rightPath, options) {
   const changes = compareConfigs(leftConfig, rightConfig, '', options);
 
   // Output results. Masking is display only, the comparison above saw the real values.
+  // Each side goes by its own document for Secret data and XML add values.
+  const hidL = hiddenPaths(leftConfig);
+  const hidR = hiddenPaths(rightConfig);
+  const mask = (v, p, hid) => (v != null && hid.some((t) => p === t || p.startsWith(t + '.')) ? MASK : maskValue(v, p));
   const shown = options.showSecrets ? changes : changes.map((c) => ({
     ...c,
-    oldValue: maskValue(c.oldValue, c.path),
-    newValue: maskValue(c.newValue, c.path)
+    oldValue: mask(c.oldValue, c.path, hidL),
+    newValue: mask(c.newValue, c.path, hidR)
   }));
   const output = formatOutput(shown, options.output, options);
 
