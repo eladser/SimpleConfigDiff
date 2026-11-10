@@ -7,6 +7,7 @@
 
 ### Fixed
 - Secret masking catches odd casing like `PassWord` and `DbPassWord`, and no longer hides token counts like `max_tokens` or a bare `PWD`.
+- CLI table and CSV cells show `false`, `0`, `null` and `""` instead of a blank, print objects and lists as JSON and dates as ISO, and no longer crash on an added INI section or TOML table.
 
 ## 2.1.0 - 2026-11-10
 

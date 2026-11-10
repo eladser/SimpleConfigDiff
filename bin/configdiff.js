@@ -68,6 +68,20 @@ function printable(text, keepNewlines = false) {
 }
 
 /**
+ * A value as table and CSV cells show it. Only a missing side is blank, so
+ * false, 0 and null still read as values and "" shows as "". Objects go
+ * through JSON since INI sections and TOML tables have no toString.
+ */
+function cellText(v) {
+  if (v === undefined) return '';
+  if (v === '') return '""';
+  if (typeof v === 'string') return v;
+  if (v instanceof Date) return v.toISOString();
+  if (v !== null && typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+/**
  * Detect file format based on extension
  */
 function detectFormat(filename) {
@@ -292,10 +306,10 @@ function formatOutput(changes, format, options) {
       return JSON.stringify(changes, null, 2);
     
     case 'csv': {
-      const cell = (v) => `"${printable(v != null ? v : '').replace(/"/g, '""')}"`;
+      const cell = (s) => `"${printable(s).replace(/"/g, '""')}"`;
       const csvHeader = 'Path,Type,Old Value,New Value\n';
       const csvRows = changes.map(change =>
-        [cell(change.path), cell(change.type), cell(change.oldValue), cell(change.newValue)].join(',')
+        [cell(change.path), cell(change.type), cell(cellText(change.oldValue)), cell(cellText(change.newValue))].join(',')
       ).join('\n');
       return csvHeader + csvRows;
     }
@@ -312,7 +326,7 @@ function formatOutput(changes, format, options) {
       changes.forEach(change => {
         const typeColor = change.type === 'added' ? 'green' : 
                          change.type === 'removed' ? 'red' : 'yellow';
-        table += `${printable(change.path).padEnd(maxPathLength)} | ${colorize(change.type.padEnd(maxTypeLength), typeColor, on)} | ${printable(change.oldValue || '')} | ${printable(change.newValue || '')}\n`;
+        table += `${printable(change.path).padEnd(maxPathLength)} | ${colorize(change.type.padEnd(maxTypeLength), typeColor, on)} | ${printable(cellText(change.oldValue))} | ${printable(cellText(change.newValue))}\n`;
       });
       
       return table;
