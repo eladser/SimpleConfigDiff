@@ -1,7 +1,7 @@
 // node --test test/configdiff.test.mjs
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -98,7 +98,7 @@ test('csv cells and parse errors escape control characters too', () => {
 
   const bad = join(dir, 'bad.yaml');
   writeFileSync(bad, 'a: 1\n b: "\x1b[2J"\n');
-  const r = run([bad, bad]);
+  const r = run([bad, bad, '--show-secrets']);
   assert.match(r.stderr, /Failed to parse yaml/);
   assert.ok(r.stderr.includes('\\x1b[2J'));
   assert.ok(!r.stderr.includes(esc));
@@ -452,5 +452,59 @@ test('added INI sections print as JSON in table and csv, masked or not', () => {
       '"b","added","","{""y"":""2""}"',
       `"c","added","","{""user"":""u"",""password"":""${pw}""}"`,
     ]);
+  }
+});
+
+// hunter2 sits next to the syntax error, so each parser's own message quotes it
+const broken = {
+  yaml: ['user: admin\npassword: hunter2\n  port: 1\n', 'line 3, column 7'],
+  toml: ['user = "admin"\npassword = "hunter2"\nport = = 1\n', 'line 3, column 8'],
+};
+
+test('a parse error is one line with the file and position and nothing from the file', () => {
+  for (const [fmt, [text, at]] of Object.entries(broken)) {
+    const [l, r] = filePair(`parse-${fmt}`, fmt, '', text);
+    const res = run([l, r]);
+    assert.equal(res.stderr, `Error: Failed to parse ${r} as ${fmt} at ${at}\n`, fmt);
+    assert.equal(res.status, 1, fmt);
+
+    const full = run([l, r, '--show-secrets']);
+    assert.match(full.stderr, new RegExp(`^Error: Failed to parse ${fmt} file: `), fmt);
+    assert.ok(full.stderr.includes('hunter2'), fmt);
+    assert.equal(full.status, 1, fmt);
+  }
+});
+
+test('JSON parse errors give a position when the message has one and never the excerpt', () => {
+  const [l, r] = filePair('parse-json', 'json', '{}', '{\n  "user": "admin",\n  "password": "hunter2"\n  "port": 1\n}\n');
+  const res = run([l, r]);
+  assert.equal(res.stderr, `Error: Failed to parse ${r} as json at line 4, column 3\n`);
+  assert.equal(res.status, 1);
+  assert.match(run([l, r, '--show-secrets']).stderr, /^Error: Failed to parse json file: .* at position 47/);
+
+  // here V8 quotes the text around the bad token instead of giving a position
+  const [l2, r2] = filePair('parse-json-token', 'json', '{}', '{\n  "password": hunter2\n}\n');
+  const res2 = run([l2, r2]);
+  assert.equal(res2.stderr, `Error: Failed to parse ${r2} as json\n`);
+  assert.equal(res2.status, 1);
+  assert.ok(run([l2, r2, '--show-secrets']).stderr.includes('hunter2'));
+});
+
+test('--watch prints the same line, on the first run and after a change', { timeout: 10000 }, async () => {
+  const [l, r] = filePair('parse-watch', 'yaml', '', broken.yaml[0]);
+  const p = spawn(process.execPath, [cli, l, r, '--watch']);
+  let out = '', err = '';
+  p.stdout.on('data', (s) => { out += s; });
+  p.stderr.on('data', (s) => { err += s; });
+  const until = async (ok) => { while (!ok()) await new Promise((res) => setTimeout(res, 20)); };
+  try {
+    await until(() => out.includes('Watching') && err.includes('\n'));
+    writeFileSync(r, broken.yaml[0] + 'more: 1\n');
+    await until(() => out.includes('recomparing') && err.split('\n').length > 2);
+  } finally {
+    p.kill();
+  }
+  for (const ln of err.trimEnd().split('\n')) {
+    assert.equal(ln, `Error: Failed to parse ${r} as yaml at line 3, column 7`);
   }
 });
