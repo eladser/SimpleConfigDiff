@@ -9,6 +9,7 @@ import { generateDiff } from '@/utils/generateDiff';
 import { downloadDiff, downloadPDFDiff } from '@/utils/exportDiff';
 import { downloadExcel } from '@/utils/exportExcel';
 import { maskResult } from '@/utils/maskSecrets';
+import { encodeShare, decodeShare, LONG_LINK } from '@/utils/shareLink';
 import { SAMPLE_LEFT, SAMPLE_RIGHT } from '@/sampleData';
 import {
   Download,
@@ -62,6 +63,10 @@ function usePane(initial: PaneState = EMPTY_PANE) {
   return { pane, setPane, ...derived };
 }
 
+// Shared links have no file name, so only force a format that detection would miss
+const overrideFor = (content: string, format: ConfigFormat | null) =>
+  format && detectFormat('', content) !== format ? format : null;
+
 const StatsRow = ({ comparisonResult }: { comparisonResult: ComparisonResult }) => {
   const stats = [
     { value: comparisonResult.summary.added, label: 'added', color: 'text-added' },
@@ -109,6 +114,7 @@ function App() {
   const [dropTarget, setDropTarget] = useState<'left' | 'right' | null>(null);
   // off on every load and never stored
   const [showSecrets, setShowSecrets] = useState(false);
+  const [shareNote, setShareNote] = useState<{ text: string; warn: boolean } | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   // views and exports read this, not comparisonResult
@@ -218,6 +224,54 @@ function App() {
     right.setPane({ name: 'production.yaml', content: SAMPLE_RIGHT, formatOverride: null });
   }, [left, right]);
 
+  // The configs go in the #fragment, which browsers never send to a server
+  const copyLink = useCallback(async () => {
+    try {
+      const d = await encodeShare({
+        left: left.pane.content,
+        right: right.pane.content,
+        leftFormat: left.format,
+        rightFormat: right.format,
+        options
+      });
+      await navigator.clipboard.writeText(`${location.href.split('#')[0]}#d=${d}`);
+      setShareNote(d.length > LONG_LINK
+        ? { text: `Copied, but it's ${Math.round(d.length / 1000)} KB. Some apps cut long links short.`, warn: true }
+        : { text: 'Link copied', warn: false });
+    } catch (err) {
+      console.error('Copy link failed:', err);
+      setShareNote({ text: "Couldn't copy the link", warn: true });
+    }
+  }, [left.pane.content, right.pane.content, left.format, right.format, options]);
+
+  useEffect(() => {
+    if (!shareNote) return;
+    const id = setTimeout(() => setShareNote(null), shareNote.warn ? 8000 : 2000);
+    return () => clearTimeout(id);
+  }, [shareNote]);
+
+  // Open a #d= link. hashchange covers pasting one into a tab that already has the app open.
+  useEffect(() => {
+    const setLeft = left.setPane;
+    const setRight = right.setPane;
+    const load = async () => {
+      if (!location.hash.startsWith('#d=')) return;
+      try {
+        const s = await decodeShare(location.hash.slice(3));
+        setLeft({ name: null, content: s.left, formatOverride: overrideFor(s.left, s.leftFormat) });
+        setRight({ name: null, content: s.right, formatOverride: overrideFor(s.right, s.rightFormat) });
+        setOptions(prev => ({ ...prev, ...s.options }));
+        setDiffError(null);
+      } catch (err) {
+        console.error('Share link failed to load:', err);
+        setDiffError('This share link is damaged or cut off, so nothing was loaded.');
+      }
+    };
+    load();
+    window.addEventListener('hashchange', load);
+    return () => window.removeEventListener('hashchange', load);
+  }, [left.setPane, right.setPane]);
+
   const handleOptionsChange = useCallback((newOptions: DiffOptions) => {
     setOptions(newOptions);
   }, []);
@@ -296,7 +350,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-bg text-fg">
-      <Header />
+      <Header canShare={!bothEmpty} onCopyLink={copyLink} note={shareNote} />
 
       <div className="max-w-370 mx-auto px-4 sm:px-6 py-6">
 

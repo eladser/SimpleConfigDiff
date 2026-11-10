@@ -1,3 +1,4 @@
+import { Link } from 'lucide-react';
 import { version } from '../../package.json';
 
 function GithubIcon({ className }: { className?: string }) {
@@ -8,10 +9,16 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-export function Header() {
+interface HeaderProps {
+  canShare: boolean;
+  onCopyLink: () => void;
+  note: { text: string; warn: boolean } | null;
+}
+
+export function Header({ canShare, onCopyLink, note }: HeaderProps) {
   return (
     <header className="border-b border-border bg-bg/90 backdrop-blur-sm sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
         <div className="flex items-baseline gap-3 font-mono text-sm">
           <span className="select-none">
             <span className="text-accent">$</span>{' '}
@@ -21,6 +28,22 @@ export function Header() {
         </div>
 
         <nav className="flex items-center gap-4 text-sm">
+          <div role="status" className="absolute right-4 sm:right-6 top-full mt-2">
+            {note && (
+              <p className={`max-w-72 px-3 py-1.5 rounded-md border border-border-strong bg-elevated text-xs shadow-lg shadow-black/40 ${note.warn ? 'text-changed' : 'text-added'}`}>
+                {note.text}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onCopyLink}
+            disabled={!canShare}
+            title="The link contains both configs in full. Secret masking doesn't apply to it."
+            className="btn-secondary text-xs disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <Link className="w-3.5 h-3.5" />
+            Copy link
+          </button>
           <a
             href="https://github.com/eladser/SimpleConfigDiff"
             target="_blank"
