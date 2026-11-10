@@ -344,3 +344,53 @@ test('masking works with --ignore and control character escapes', () => {
 test('--help lists --show-secrets', () => {
   assert.match(run(['--help']).stdout, /--show-secrets/);
 });
+
+// table rows as [path, type, old, new], csv rows as raw lines, headers dropped
+const tableRows = (out) => out.trimEnd().split('\n').slice(2).map((line) => line.split(' | ').map((s) => s.trimEnd()));
+const csvRows = (out) => out.trimEnd().split('\n').slice(1);
+
+test('table and csv show false, 0, null and "" as values, objects and lists as JSON, dates as ISO', () => {
+  const l = join(dir, 'cells-l.yaml');
+  const r = join(dir, 'cells-r.yaml');
+  writeFileSync(l, 'debug: true\nport: 1\ntimeout: null\nname: x\n');
+  writeFileSync(r, "debug: false\nport: 0\ntimeout: 1\nname: ''\nb:\n  c: 2\nlist: [1, 2]\nreleased: 2024-01-01\n");
+  assert.deepEqual(tableRows(run([l, r]).stdout), [
+    ['debug', 'changed', 'true', 'false'],
+    ['port', 'changed', '1', '0'],
+    ['timeout', 'changed', 'null', '1'],
+    ['name', 'changed', 'x', '""'],
+    ['b', 'added', '', '{"c":2}'],
+    ['list', 'added', '', '[1,2]'],
+    ['released', 'added', '', '2024-01-01T00:00:00.000Z'],
+  ]);
+  assert.deepEqual(csvRows(run([l, r, '-o', 'csv']).stdout), [
+    '"debug","changed","true","false"',
+    '"port","changed","1","0"',
+    '"timeout","changed","null","1"',
+    '"name","changed","x",""""""',
+    '"b","added","","{""c"":2}"',
+    '"list","added","","[1,2]"',
+    '"released","added","","2024-01-01T00:00:00.000Z"',
+  ]);
+});
+
+test('added INI sections print as JSON in table and csv, masked or not', () => {
+  const l = join(dir, 'sections-l.ini');
+  const r = join(dir, 'sections-r.ini');
+  writeFileSync(l, '[a]\nx=1\n');
+  writeFileSync(r, '[a]\nx=1\n\n[b]\ny=2\n\n[c]\nuser=u\npassword=S3CR3T-1\n');
+  for (const [flags, pw] of [[[], MASK], [['--show-secrets'], 'S3CR3T-1']]) {
+    const table = run([l, r, ...flags]);
+    assert.equal(table.stderr, '');
+    assert.deepEqual(tableRows(table.stdout), [
+      ['b', 'added', '', '{"y":"2"}'],
+      ['c', 'added', '', `{"user":"u","password":"${pw}"}`],
+    ]);
+    const csv = run([l, r, '-o', 'csv', ...flags]);
+    assert.equal(csv.stderr, '');
+    assert.deepEqual(csvRows(csv.stdout), [
+      '"b","added","","{""y"":""2""}"',
+      `"c","added","","{""user"":""u"",""password"":""${pw}""}"`,
+    ]);
+  }
+});
