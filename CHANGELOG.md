@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.2.0 - 2026-11-10
 
 ### Changed
 - The CLI needs Node 22.22.2+ or 24.15+, to match its dependencies.
